@@ -1,11 +1,13 @@
 import sys
 from enum import Enum
 import datetime
+import socket
 
 DEFAULT_HOSTNAME = '127.0.0.1'
 DEFAULT_LOG_PATH = './server.log'
 
 class LogEvent(Enum):
+    # Enums for all types of logging events that can occur
     SERVER_START = 1
     SERVER_CLOSE = 2
     SERVER_ERROR = 3
@@ -19,16 +21,19 @@ class LogEvent(Enum):
 
 class Logger:
     def __init__(self, log_filepath: str):
+        # Init output filepath and clear the file at the given filepath
         self.log_filepath = log_filepath
         self.clear()
 
     def log(self, event_type, log_content):
+        # Output the log_content to the log file
         ts = self.getFormattedTimestamp()
         log_entry = f"{ts} - {event_type.name.ljust(LogEvent.getMaxEventNameLength())}: {log_content}\n"
         with open(self.log_filepath, 'a') as file:
             file.write(log_entry)
 
     def clear(self):
+        # Open and close file in write mode to clear
         with open(self.log_filepath, 'w'):
             pass
 
@@ -40,12 +45,14 @@ class Logger:
         return raw_ts.strftime('[%d/%b/%Y %H:%M:%S.') + f"{raw_ts.microsecond // 1000:03d}]"
 
 class Server:
-    def __init__(self, hostname, port):
-        self.hostname = hostname
+    def __init__(self, port, hostname):
+        # Init key variables and create logger
         self.port = port
+        self.hostname = hostname
         self.logger = Logger(DEFAULT_LOG_PATH)
 
     def start(self):
+        # Start the server and listen on the given port
         print(f"Starting server on port {self.port}")
         
         self.logger.log(LogEvent.SERVER_START, f'Server started on port {self.port}, and under hostname {self.hostname}')
@@ -68,5 +75,5 @@ if __name__ == "__main__":
     hostname = sys.argv[2] if num_args == 3 else DEFAULT_HOSTNAME
 
     # Create and start server
-    server = Server(hostname, port)
+    server = Server(port, hostname)
     server.start()

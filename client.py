@@ -1,5 +1,11 @@
 import sys
 
+class Client:
+    def __init__(self, username, hostname, port):
+        self.username = username
+        self.hostname = hostname
+        self.port = port
+
 def connect(username, hostname, port):
     # Your client code goes here
     print(f"Connecting to server with username '{username}', hostname '{hostname}', and port {port}")
