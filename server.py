@@ -3,7 +3,6 @@ from enum import Enum
 import datetime
 import socket
 
-DEFAULT_HOSTNAME = '127.0.0.1'
 DEFAULT_LOG_PATH = './server.log'
 
 class LogEvent(Enum):
@@ -45,23 +44,20 @@ class Logger:
         return raw_ts.strftime('[%d/%b/%Y %H:%M:%S.') + f"{raw_ts.microsecond // 1000:03d}]"
 
 class Server:
-    def __init__(self, port, hostname):
+    def __init__(self, port):
         # Init key variables and create logger
         self.port = port
-        self.hostname = hostname
         self.logger = Logger(DEFAULT_LOG_PATH)
 
     def start(self):
         # Start the server and listen on the given port
         print(f"Starting server on port {self.port}")
         
-        self.logger.log(LogEvent.SERVER_START, f'Server started on port {self.port}, and under hostname {self.hostname}')
+        self.logger.log(LogEvent.SERVER_START, f'Server started on port {self.port}')
 
 if __name__ == "__main__":
-    # Check if number of command line parameters is correct
-    num_args = len(sys.argv)
-    if num_args < 2 or num_args > 3:
-        print("Usage: python server.py [port] [?hostname]")
+    if len(sys.argv) != 2:
+        print("Usage: python server.py [port]")
         sys.exit(1)
 
     # Convert port input parameter to integer
@@ -71,9 +67,6 @@ if __name__ == "__main__":
         print("Invalid port number. Port must be an integer.")
         sys.exit(1)
 
-    # Assign hostname to default if no custom hostname was entered
-    hostname = sys.argv[2] if num_args == 3 else DEFAULT_HOSTNAME
-
     # Create and start server
-    server = Server(port, hostname)
+    server = Server(port)
     server.start()
