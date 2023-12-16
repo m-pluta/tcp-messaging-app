@@ -26,13 +26,13 @@ class MessagePacket(Packet):
 
 
 @dataclass
-class FileRequestPacket(Packet):
-    filename: str
-    type: str = "file_request"
+class FileListRequestPacket(Packet):
+    type: str = "file_list_request"
 
 
 @dataclass
-class FileListRequestPacket(Packet):
+class FileRequestPacket(Packet):
+    filename: str
     type: str = "file_request"
 
 
