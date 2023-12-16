@@ -32,30 +32,30 @@ class Server:
 
     def start(self):
         # Begin starting the server
-        self.logger.log(LogEvent.SERVER_INIT_START, f'Server starting on port {self.port}')
+        self.logger.log(LogEvent.SERVER_INIT_START, port=self.port)
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
         self.socket.bind(("", self.port))
         self.socket.listen(1)
         self.is_running = True
-        self.logger.log(LogEvent.SERVER_STARTED, f'Server started on port {self.port}')
+        self.logger.log(LogEvent.SERVER_STARTED, port=self.port)
 
         self.listen()
 
     def listen(self):
-        self.logger.log(LogEvent.SERVER_LISTENING, f'Server started listening on port {self.port}')
+        self.logger.log(LogEvent.SERVER_LISTENING, port=self.port)
 
         while self.is_running: 
             # New client tried to establish a connection
             cSocket, addr = self.socket.accept()
             conn = ClientConnection(cSocket, addr)
             self.currentConnections[conn.uuid] = conn
-            self.logger.log(LogEvent.USER_CONNECT, f'New client connection: uuid: {conn.uuid}, ip_address: {conn.ip_address}, client_port: {conn.port}')
+            self.logger.log(LogEvent.USER_CONNECT, uuid=conn.uuid, ip_address=conn.ip_address, clientPort=conn.port)
 
             # Start a new thread to handle communication with the new client
             cThread = threading.Thread(target=self.handleClient, args=(conn,))
             cThread.start()
-            self.logger.log(LogEvent.USER_THREAD_STARTED, f'Client thread started for uuid: {conn.uuid}')
+            self.logger.log(LogEvent.USER_THREAD_STARTED, uuid=conn.uuid)
 
         self.closeServer()
 
@@ -68,24 +68,24 @@ class Server:
 
             # Decode data
             message = data.decode()
-            self.logger.log(LogEvent.PACKET_RECEIVED, f'Packet received from uuid {conn.uuid}, Content: {message}')
+            self.logger.log(LogEvent.PACKET_RECEIVED, uuid=conn.uuid, content=message)
 
             # Resend modified message
             modifiedMessage = message.upper()
             conn.socket.send(modifiedMessage.encode())
-            self.logger.log(LogEvent.PACKET_SENT, f'Packet send to uuid {conn.uuid}, Content: {modifiedMessage}')
+            self.logger.log(LogEvent.PACKET_SENT, uuid=conn.uuid, content=modifiedMessage)
 
         self.closeClient(conn.uuid)
 
     def closeClient(self, uuid):
-        self.logger.log(LogEvent.USER_DISCONNECT, f'Client disconnected: uuid: {uuid}')
+        self.logger.log(LogEvent.USER_DISCONNECT, uuid=uuid)
         self.currentConnections[uuid].socket.close()
         del self.currentConnections[uuid]
 
     def closeServer(self):
         self.is_running = False
         self.socket.close()
-        self.logger.log(LogEvent.SERVER_CLOSE, 'Server shutting down')
+        self.logger.log(LogEvent.SERVER_CLOSE)
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

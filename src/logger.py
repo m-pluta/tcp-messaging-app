@@ -29,12 +29,53 @@ class Logger:
             file.write(f'{"Timestamp".ljust(len(self.getFormattedTimestamp()))} | {"Event Type".ljust(LogEvent.getMaxEventNameLength())} | {"Event details"}\n')
             file.write(f'{"".join(["-"] * 120)}\n')
 
-    def log(self, event_type, log_content):
+    def log(self, event_type, **kwargs):
         ts = self.getFormattedTimestamp()
+        log_content = self.getLogContent(event_type, kwargs)
         log_entry = f"{ts} | {event_type.name.ljust(LogEvent.getMaxEventNameLength())} | {log_content}"
         print(log_entry)
         with open(self.log_filepath, 'a') as file:
             file.write(f'{log_entry}\n')
+
+    def getLogContent(self, event_type, kwargs):
+        match (event_type):
+            case LogEvent.SERVER_INIT_START:
+                return f'Server starting on port {kwargs.get("port")}'
+            
+            case LogEvent.SERVER_STARTED:
+                return f'Server started on port {kwargs.get("port")}'
+            
+            case LogEvent.SERVER_LISTENING:
+                return f'Server started listening on port {kwargs.get("port")}'
+            
+            case LogEvent.USER_CONNECT:
+                return (f'New client connection: '
+                        f'uuid: {kwargs.get("uuid")}, '
+                        f'ip_address: {kwargs.get("ip_address")}, '
+                        f'client_port: {kwargs.get("clientPort")}')
+            
+            case LogEvent.USER_THREAD_STARTED:
+                return f'Client thread started for uuid: {kwargs.get("uuid")}'
+            
+            case LogEvent.PACKET_RECEIVED:
+                return (f'Packet received: '
+                        f'uuid: {kwargs.get("uuid")}, '
+                        f'Content: {kwargs.get("content")}')
+            
+            case LogEvent.PACKET_SENT:
+                return (f'Packet sent:'
+                        f'uuid: {kwargs.get("uuid")}, '
+                        f'Content: {kwargs.get("content")}')
+            
+            case LogEvent.USER_DISCONNECT:
+                return f'Client disconnected: uuid: {kwargs.get("uuid")}'
+            
+            case LogEvent.SERVER_CLOSE:
+                return 'Server shutting down'
+        
+        return None
+
+
 
     def clear(self):
         # Open and close file in write mode to clear
