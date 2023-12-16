@@ -20,6 +20,7 @@ class MetadataPacket(Packet):
 
 @dataclass
 class MessagePacket(Packet):
+    sender: str
     recipient: str
     content: str
     type: str = "message"

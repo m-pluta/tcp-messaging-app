@@ -76,24 +76,71 @@ class Server:
                                     content=incoming_packet['username'])
                     conn.username = incoming_packet['username']
                 case 'message':
+                    packet_content = incoming_packet['content']
+
                     self.logger.log(LogEvent.PACKET_RECEIVED,
                                     uuid=conn.uuid,
-                                    content=incoming_packet['content'])
-                    modifiedMessage = incoming_packet['content'].upper()
+                                    content=packet_content)
 
-                    # Resend modified message
-                    outgoing_packet = MessagePacket(conn.username,
-                                                    content=modifiedMessage)
-                    conn.socket.send(outgoing_packet.to_json().encode())
-                    self.logger.log(LogEvent.PACKET_SENT,
-                                    uuid=conn.uuid,
-                                    content=modifiedMessage)
+                    if incoming_packet['recipient']:
+                        recipient_uuid = None
+                        for conn_uuid, info in self.currentConnections.items():
+                            if info.username == incoming_packet['recipient']:
+                                recipient_uuid = conn_uuid
+
+                        self.unicast(conn.uuid,
+                                     recipient_uuid,
+                                     packet_content)
+                    else:
+                        self.broadcast(conn.uuid, packet_content)
                 case 'file_list_request':
                     pass
                 case 'file_request':
                     pass
 
         self.closeClient(conn.uuid)
+
+    def unicast(self, sender_uuid, recipient_uuid, message):
+        if recipient_uuid in self.currentConnections:
+            recipient_socket = self.currentConnections[recipient_uuid].socket
+
+            sender = (self.currentConnections[sender_uuid].username
+                      if sender_uuid is not None
+                      else 'SERVER')
+
+            recipient = self.currentConnections[recipient_uuid].username
+
+            packet = MessagePacket(sender=sender,
+                                   recipient=recipient,
+                                   content=message)
+
+            recipient_socket.send(packet.to_json().encode())
+
+            self.logger.log(LogEvent.PACKET_SENT,
+                            uuid=recipient_uuid,
+                            content=message)
+
+    def broadcast(self, sender_uuid, message):
+        sender = (self.currentConnections[sender_uuid].username
+                  if sender_uuid is not None
+                  else 'SERVER')
+
+        for conn_uuid, conn_info in self.currentConnections.items():
+            if conn_uuid == sender_uuid:
+                continue
+
+            recipient_socket = conn_info.socket
+
+            recipient = conn_info.username
+
+            packet = MessagePacket(sender=sender,
+                                   recipient=recipient,
+                                   content=message)
+
+            recipient_socket.send(packet.to_json().encode())
+            self.logger.log(LogEvent.PACKET_SENT,
+                            uuid=conn_uuid,
+                            content=message)
 
     def closeClient(self, uuid):
         self.logger.log(LogEvent.USER_DISCONNECT, uuid=uuid)

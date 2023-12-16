@@ -25,20 +25,27 @@ class Client:
         while True:
             # Read input from user
             message = input("Input lowercase sentence: ")
-            match message:
-                case '/disconnect':
+            match message.split(maxsplit=2):
+                case ['/disconnect']:
                     break
-
-            # Send data to server
-            outgoing_packet = MessagePacket(recipient='everyone',
-                                            content=message)
-            clientSocket.send(outgoing_packet.to_json().encode())
+                case ['/msg', username, message]:
+                    # Send data to server
+                    outgoing_packet = MessagePacket(sender=self.username,
+                                                    recipient=username,
+                                                    content=message)
+                    clientSocket.send(outgoing_packet.to_json().encode())
+                case _:
+                    # Send data to server
+                    outgoing_packet = MessagePacket(sender=self.username,
+                                                    recipient=None,
+                                                    content=message)
+                    clientSocket.send(outgoing_packet.to_json().encode())
 
             # Receive response
             data = clientSocket.recv(1024).decode()
 
             incoming_packet = Packet.loads(data)
-            print(f'Server: {incoming_packet["content"]}')
+            print(f'{incoming_packet["sender"]}: {incoming_packet["content"]}')
 
         clientSocket.close()
 
