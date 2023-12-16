@@ -95,6 +95,41 @@ class Server:
 
         self.closeClient(conn.uuid)
 
+    def unicast(self, sender_uuid, recipient_uuid, message):
+        if recipient_uuid in self.currentConnections:
+            recipient_socket = self.currentConnections[recipient_uuid].socket
+
+            sender = (self.currentConnections[sender_uuid].username
+                      if sender_uuid
+                      else 'SERVER')
+
+            recipient = self.currentConnections[recipient_uuid].username
+
+            packet = MessagePacket(sender=sender,
+                                   recipient=recipient,
+                                   content=message)
+
+            recipient_socket.send(packet.to_json().encode())
+
+    def broadcast(self, sender_uuid, message):
+        sender = (self.currentConnections[sender_uuid].username
+                  if sender_uuid
+                  else 'SERVER')
+
+        for conn_uuid, conn_info in self.currentConnections.items():
+            if conn_uuid == sender_uuid:
+                continue
+
+            recipient_socket = conn_info.socket
+
+            recipient = conn_info.username
+
+            packet = MessagePacket(sender=sender,
+                                   recipient=recipient,
+                                   content=message)
+
+            recipient_socket.send(packet.to_json().encode())
+
     def closeClient(self, uuid):
         self.logger.log(LogEvent.USER_DISCONNECT, uuid=uuid)
         self.currentConnections[uuid].socket.close()
