@@ -1,5 +1,9 @@
+# Setup
 import sys
+
+# Main
 import socket
+import json
 
 class Client:
     def __init__(self, username, hostname, port):
@@ -8,23 +12,24 @@ class Client:
         self.serverPort = port
 
     def connect(self):
-        print(f"Connecting to server with username '{self.username}', hostname '{self.serverHostname}', and port self{self.serverPort}")
-
+        # Setup socket
+        print(f"Connecting to {self.serverHostname}:{self.serverPort} as {self.username}")
         clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         clientSocket.connect((self.serverHostname, self.serverPort))
 
         while True:
-
+            # Read input from user
             message = input("Input lowercase sentence: ")
             match message:
                 case '/disconnect':
-                    clientSocket.close()
                     break
 
+            # Send data to server, print out response 
             clientSocket.send(message.encode())
             modifiedMessage = clientSocket.recv(1024).decode()
             print(f'Server: {modifiedMessage}')
             
+        clientSocket.close()
 
 
 if __name__ == "__main__":
