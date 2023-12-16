@@ -1,4 +1,5 @@
 # Standard Library Imports
+import select
 import sys
 import socket
 
@@ -22,30 +23,38 @@ class Client:
         metadata_packet = MetadataPacket(username=self.username)
         clientSocket.send(metadata_packet.to_json().encode())
 
+        inputs = [clientSocket, sys.stdin]
         while True:
-            # Read input from user
-            message = input("Input lowercase sentence: ")
-            match message.split(maxsplit=2):
-                case ['/disconnect']:
-                    break
-                case ['/msg', username, message]:
-                    # Send data to server
-                    outgoing_packet = MessagePacket(sender=self.username,
-                                                    recipient=username,
-                                                    content=message)
-                    clientSocket.send(outgoing_packet.to_json().encode())
-                case _:
-                    # Send data to server
-                    outgoing_packet = MessagePacket(sender=self.username,
-                                                    recipient=None,
-                                                    content=message)
-                    clientSocket.send(outgoing_packet.to_json().encode())
+            # Monitor for readability
+            readable, _, _ = select.select(inputs, [], [])
 
-            # Receive response
-            data = clientSocket.recv(1024).decode()
+            for sock in readable:
+                if sock is clientSocket:
+                    # Receive response
+                    data = clientSocket.recv(1024).decode()
 
-            incoming_packet = Packet.loads(data)
-            print(f'{incoming_packet["sender"]}: {incoming_packet["content"]}')
+                    incoming_packet = Packet.loads(data)
+                    print(f'{incoming_packet["sender"]}: '
+                          f'{incoming_packet["content"]}')
+
+                elif sock is sys.stdin:
+                    # Read input from user
+                    message = input()
+                    match message.split(maxsplit=2):
+                        case ['/disconnect']:
+                            break
+                        case ['/msg', username, message]:
+                            # Send data to server
+                            packet = MessagePacket(sender=self.username,
+                                                   recipient=username,
+                                                   content=message)
+                            clientSocket.send(packet.to_json().encode())
+                        case _:
+                            # Send data to server
+                            packet = MessagePacket(sender=self.username,
+                                                   recipient=None,
+                                                   content=message)
+                            clientSocket.send(packet.to_json().encode())
 
         clientSocket.close()
 
