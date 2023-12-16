@@ -9,6 +9,7 @@ import socket
 import uuid
 import threading
 
+
 class ClientConnection:
     nextID = 0
 
@@ -18,10 +19,11 @@ class ClientConnection:
         self.port = address[1]
         self.uuid = ClientConnection.nextID
         ClientConnection.nextID += 1
-        
-    #TODO replace ids with uuid
+
+    # TODO: replace ids with uuid
     def generateUUID(self):
         return str(uuid.uuid4())
+
 
 class Server:
     def __init__(self, port):
@@ -34,7 +36,7 @@ class Server:
         # Begin starting the server
         self.logger.log(LogEvent.SERVER_INIT_START, port=self.port)
 
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.bind(("", self.port))
         self.socket.listen(1)
         self.is_running = True
@@ -45,12 +47,13 @@ class Server:
     def listen(self):
         self.logger.log(LogEvent.SERVER_LISTENING, port=self.port)
 
-        while self.is_running: 
+        while self.is_running:
             # New client tried to establish a connection
             cSocket, addr = self.socket.accept()
             conn = ClientConnection(cSocket, addr)
             self.currentConnections[conn.uuid] = conn
-            self.logger.log(LogEvent.USER_CONNECT, uuid=conn.uuid, ip_address=conn.ip_address, clientPort=conn.port)
+            self.logger.log(LogEvent.USER_CONNECT, uuid=conn.uuid,
+                            ip_address=conn.ip_address, clientPort=conn.port)
 
             # Start a new thread to handle communication with the new client
             cThread = threading.Thread(target=self.handleClient, args=(conn,))
@@ -68,12 +71,14 @@ class Server:
 
             # Decode data
             message = data.decode()
-            self.logger.log(LogEvent.PACKET_RECEIVED, uuid=conn.uuid, content=message)
+            self.logger.log(LogEvent.PACKET_RECEIVED,
+                            uuid=conn.uuid, content=message)
 
             # Resend modified message
             modifiedMessage = message.upper()
             conn.socket.send(modifiedMessage.encode())
-            self.logger.log(LogEvent.PACKET_SENT, uuid=conn.uuid, content=modifiedMessage)
+            self.logger.log(LogEvent.PACKET_SENT,
+                            uuid=conn.uuid, content=modifiedMessage)
 
         self.closeClient(conn.uuid)
 
@@ -86,6 +91,7 @@ class Server:
         self.is_running = False
         self.socket.close()
         self.logger.log(LogEvent.SERVER_CLOSE)
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

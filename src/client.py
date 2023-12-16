@@ -5,6 +5,7 @@ import sys
 import socket
 import json
 
+
 class Client:
     def __init__(self, username, hostname, port):
         self.username = username
@@ -13,7 +14,7 @@ class Client:
 
     def connect(self):
         # Setup socket
-        print(f"Connecting to {self.serverHostname}:{self.serverPort} as {self.username}")
+        print(f"Connecting to {self.serverHostname}:{self.serverPort}")
         clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         clientSocket.connect((self.serverHostname, self.serverPort))
 
@@ -24,11 +25,11 @@ class Client:
                 case '/disconnect':
                     break
 
-            # Send data to server, print out response 
+            # Send data to server, print out response
             clientSocket.send(message.encode())
             modifiedMessage = clientSocket.recv(1024).decode()
             print(f'Server: {modifiedMessage}')
-            
+
         clientSocket.close()
 
 
