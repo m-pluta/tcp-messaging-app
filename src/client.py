@@ -1,9 +1,11 @@
 # Setup
 import sys
 
+# Packets
+from packet import Packet, MetadataPacket, MessagePacket
+
 # Main
 import socket
-import json
 
 
 class Client:
@@ -18,6 +20,10 @@ class Client:
         clientSocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         clientSocket.connect((self.serverHostname, self.serverPort))
 
+        # Send metadata to server before beginning main transmission
+        metadata_packet = MetadataPacket(username=self.username)
+        clientSocket.send(metadata_packet.to_json().encode())
+
         while True:
             # Read input from user
             message = input("Input lowercase sentence: ")
@@ -25,10 +31,16 @@ class Client:
                 case '/disconnect':
                     break
 
-            # Send data to server, print out response
-            clientSocket.send(message.encode())
-            modifiedMessage = clientSocket.recv(1024).decode()
-            print(f'Server: {modifiedMessage}')
+            # Send data to server
+            outgoing_packet = MessagePacket(recipient='everyone',
+                                            content=message)
+            clientSocket.send(outgoing_packet.to_json().encode())
+
+            # Receive response
+            data = clientSocket.recv(1024).decode()
+
+            incoming_packet = Packet.loads(data)
+            print(f'Server: {incoming_packet["content"]}')
 
         clientSocket.close()
 

@@ -4,6 +4,9 @@ import sys
 # Logging
 from logger import Logger, LogEvent
 
+# Packets
+from packet import Packet, MessagePacket
+
 # Main
 import socket
 import uuid
@@ -69,16 +72,30 @@ class Server:
             if not data:
                 break
 
-            # Decode data
-            message = data.decode()
-            self.logger.log(LogEvent.PACKET_RECEIVED,
-                            uuid=conn.uuid, content=message)
+            incoming_packet = Packet.loads(data.decode())
+            match (incoming_packet['type']):
+                case 'metadata':
+                    self.logger.log(LogEvent.PACKET_RECEIVED,
+                                    uuid=conn.uuid,
+                                    content=incoming_packet['username'])
+                    conn.username = incoming_packet['username']
+                case 'message':
+                    self.logger.log(LogEvent.PACKET_RECEIVED,
+                                    uuid=conn.uuid,
+                                    content=incoming_packet['content'])
+                    modifiedMessage = incoming_packet['content'].upper()
 
-            # Resend modified message
-            modifiedMessage = message.upper()
-            conn.socket.send(modifiedMessage.encode())
-            self.logger.log(LogEvent.PACKET_SENT,
-                            uuid=conn.uuid, content=modifiedMessage)
+                    # Resend modified message
+                    outgoing_packet = MessagePacket(conn.username,
+                                                    content=modifiedMessage)
+                    conn.socket.send(outgoing_packet.to_json().encode())
+                    self.logger.log(LogEvent.PACKET_SENT,
+                                    uuid=conn.uuid,
+                                    content=modifiedMessage)
+                case 'file_list_request':
+                    pass
+                case 'file_request':
+                    pass
 
         self.closeClient(conn.uuid)
 
