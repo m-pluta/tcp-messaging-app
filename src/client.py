@@ -1,11 +1,9 @@
-# Setup
+# Standard Library Imports
 import sys
-
-# Packets
-from packet import Packet, MetadataPacket, MessagePacket
-
-# Main
 import socket
+
+# Local Imports
+from packet import Packet, MetadataPacket, MessagePacket
 
 
 class Client:

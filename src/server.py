@@ -1,16 +1,12 @@
-# Setup
+# Standard Library Imports
 import sys
-
-# Logging
-from logger import Logger, LogEvent
-
-# Packets
-from packet import Packet, MessagePacket
-
-# Main
 import socket
 import uuid
 import threading
+
+# Local Imports
+from logger import Logger, LogEvent
+from packet import Packet, MessagePacket
 
 
 class ClientConnection:
