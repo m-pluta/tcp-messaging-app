@@ -78,7 +78,7 @@ class Server:
                     client_port=conn.port
                 )
 
-                # Start a new thread to handle communication with the new client
+                # Start a new thread to handle communication with new client
                 client_thread = threading.Thread(
                     target=self.handle_client,
                     args=(conn,)
