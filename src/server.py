@@ -66,28 +66,32 @@ class Server:
         )
 
         while self.is_running:
-            # New client tries to establish a connection
-            client_socket, addr = self.socket.accept()
-            conn = ClientConnection(client_socket, addr)
-            self.connections[conn.uuid] = conn
-            self.logger.log(
-                LogEvent.USER_CONNECT,
-                uuid=conn.uuid,
-                ip_address=conn.ip_address,
-                client_port=conn.port
-            )
+            try:
+                # New client tries to establish a connection
+                client_socket, addr = self.socket.accept()
+                conn = ClientConnection(client_socket, addr)
+                self.connections[conn.uuid] = conn
+                self.logger.log(
+                    LogEvent.USER_CONNECT,
+                    uuid=conn.uuid,
+                    ip_address=conn.ip_address,
+                    client_port=conn.port
+                )
 
-            # Start a new thread to handle communication with the new client
-            client_thread = threading.Thread(
-                target=self.handle_client,
-                args=(conn,)
-            )
-            client_thread.start()
-            self.logger.log(
-                LogEvent.USER_THREAD_STARTED,
-                uuid=conn.uuid
-            )
+                # Start a new thread to handle communication with the new client
+                client_thread = threading.Thread(
+                    target=self.handle_client,
+                    args=(conn,)
+                )
+                client_thread.start()
+                self.logger.log(
+                    LogEvent.USER_THREAD_STARTED,
+                    uuid=conn.uuid
+                )
+            except KeyboardInterrupt:
+                break
 
+        self.close_client_sockets()
         self.close_server()
 
     def handle_client(self, conn):
@@ -241,12 +245,25 @@ class Server:
             )
             self.broadcast_new(None, packet, exclude=[client_uuid])
 
+            # TODO: Send closed socket a message saying it is being closed.
             client_conn.socket.close()
             del self.connections[client_uuid]
             self.logger.log(
                 LogEvent.USER_DISCONNECT,
                 uuid=client_uuid
             )
+
+    def close_client_sockets(self):
+        print("Received KeyboardInterrupt. Closing all client sockets...")
+        client_uuids = list(self.connections.keys())
+
+        for client_uuid in client_uuids:
+            client_conn = self.connections[client_uuid]
+            self.close_client(client_conn)
+
+        # Handle someone connecting while the client sockets were being closed
+        if len(self.connections) > 0:
+            self.close_client_sockets()
 
     def close_server(self):
         self.is_running = False
