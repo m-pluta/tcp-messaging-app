@@ -27,14 +27,20 @@ class MessagePacket(Packet):
 
 
 @dataclass
+class AnnouncementPacket(Packet):
+    content: str
+    type: str = "announcement"
+
+
+@dataclass
 class FileListRequestPacket(Packet):
     type: str = "file_list_request"
 
 
 @dataclass
-class FileRequestPacket(Packet):
+class DownloadRequestPacket(Packet):
     filename: str
-    type: str = "file_request"
+    type: str = "download_request"
 
 
 def parse_packet(packet_string):

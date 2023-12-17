@@ -13,7 +13,7 @@ from packet import (
     MetadataPacket,
     MessagePacket,
     FileListRequestPacket,
-    FileRequestPacket
+    DownloadRequestPacket,
 )
 
 
@@ -59,10 +59,13 @@ class Client:
         data = client_socket.recv(1024).decode()
 
         incoming_packet = Packet.loads(data)
-        print(
-            f'{incoming_packet.get("sender")}: '
-            f'{incoming_packet.get("content")}'
-        )
+        sender = incoming_packet.get("sender")
+        content = incoming_packet.get("content")
+
+        if sender:
+            print(f'{sender}: {content}')
+        else:
+            print(f'{content}')
 
     def hand_user_command(self, client_socket):
         # Read input from user
@@ -94,7 +97,7 @@ class Client:
                 if folder_path:
                     print(f"Selected folder: {folder_path}")
                     self.download_path = folder_path
-                    packet = FileRequestPacket(filename=filename)
+                    packet = DownloadRequestPacket(filename=filename)
                     client_socket.send(packet.to_json().encode())
                 else:
                     print("No folder selected")

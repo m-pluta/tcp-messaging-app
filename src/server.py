@@ -6,8 +6,15 @@ import threading
 import os
 
 # Local Imports
-from logger import Logger, LogEvent
-from packet import Packet, MessagePacket
+from logger import (
+    Logger,
+    LogEvent,
+)
+from packet import (
+    Packet,
+    MessagePacket,
+    AnnouncementPacket,
+)
 
 
 class ClientConnection:
@@ -95,67 +102,90 @@ class Server:
 
             match (packet.get('type')):
                 case 'metadata':
-                    username = packet.get('username')
-                    self.logger.log(
-                        LogEvent.PACKET_RECEIVED,
-                        uuid=conn.uuid,
-                        content=username
-                    )
-                    conn.username = username
+                    self.process_metadata_packet(packet, conn)
                 case 'message':
-                    packet_content = packet.get('content')
-
-                    self.logger.log(
-                        LogEvent.PACKET_RECEIVED,
-                        uuid=conn.uuid,
-                        content=packet_content
-                    )
-
-                    if recipient_username := packet.get('recipient'):
-
-                        recipient_uuid = self.get_uuid(recipient_username)
-                        self.unicast(conn.uuid, recipient_uuid, packet_content)
-
-                    else:
-                        self.broadcast(conn.uuid, packet_content)
+                    self.process_message_packet(packet, conn)
                 case 'file_list_request':
-                    self.logger.log(
-                        LogEvent.FILE_LIST_REQUEST,
-                        uuid=conn.uuid
-                    )
-                    try:
-                        with os.scandir(self.files_path) as entries:
-                            files = [e.name for e in entries if e.is_file()]
-                    except FileNotFoundError:
-                        files = []
-
-                    if files:
-                        file_list = " ".join(files)
-                        self.unicast(None, conn.uuid, file_list)
-                    else:
-                        print(f'No files found in {self.files_path}')
-
-                case 'file_request':
-                    self.logger.log(
-                        LogEvent.DOWNLOAD_REQUEST,
-                        filename=packet.get('filename'),
-                        uuid=conn.uuid
-                    )
-                    pass
+                    self.process_file_list_request_packet(conn)
+                case 'download_request':
+                    self.process_download_request_packet(packet, conn)
 
         self.close_client(conn.uuid)
 
-    def unicast(self, sender_uuid, recipient_uuid, message):
-        if recipient_uuid in self.connections:
+    def process_metadata_packet(self, incoming_packet, client_conn):
+        # Extract username from metadata
+        username = incoming_packet.get('username')
+        self.logger.log(
+            LogEvent.PACKET_RECEIVED,
+            uuid=client_conn.uuid,
+            content=username
+        )
+        client_conn.username = username
 
-            sender_username = self.get_username(sender_uuid)
-            recipient_username = self.get_username(recipient_uuid)
+        # Send announcement to all other clients
+        packet = AnnouncementPacket(
+            content=(
+                f'{username} has joined the chat!'
+            )
+        )
+        self.broadcast_new(None, packet, exclude=[client_conn.uuid])
+
+    def process_message_packet(self, incoming_packet, client_conn):
+        packet_content = incoming_packet.get('content')
+        self.logger.log(
+            LogEvent.PACKET_RECEIVED,
+            uuid=client_conn.uuid,
+            content=packet_content
+        )
+
+        recipient_username = incoming_packet.get('recipient')
+        recipient_uuid = self.get_uuid(recipient_username)
+
+        packet = MessagePacket(
+            sender=None, recipient=None,
+            content=packet_content
+        )
+
+        if recipient_uuid:
+            self.unicast_new(client_conn.uuid, recipient_uuid, packet)
+        else:
+            self.broadcast_new(client_conn.uuid, packet)
+
+    def process_file_list_request_packet(self, client_conn):
+        self.logger.log(
+            LogEvent.FILE_LIST_REQUEST,
+            uuid=client_conn.uuid
+        )
+        try:
+            with os.scandir(self.files_path) as entries:
+                files = [e.name for e in entries if e.is_file()]
+        except FileNotFoundError:
+            files = []
+
+        if files:
+            file_list = " ".join(files)
 
             packet = MessagePacket(
-                sender=sender_username,
-                recipient=recipient_username,
-                content=message
+                sender=None, recipient=None,
+                content=file_list
             )
+
+            self.unicast_new(None, client_conn.uuid, packet)
+        else:
+            print(f'No files found in {self.files_path}')
+
+    def process_download_request_packet(self, incoming_packet, client_conn):
+        filename = incoming_packet.get('filename')
+        self.logger.log(
+            LogEvent.DOWNLOAD_REQUEST,
+            filename=filename,
+            uuid=client_conn.uuid
+        )
+
+    def unicast_new(self, sender_uuid, recipient_uuid, packet: Packet):
+        if recipient_uuid in self.connections:
+            packet.sender = self.get_username(sender_uuid)
+            packet.recipient = self.get_username(recipient_uuid)
 
             recipient_socket = self.connections[recipient_uuid].socket
             recipient_socket.send(packet.to_json().encode())
@@ -163,35 +193,31 @@ class Server:
             self.logger.log(
                 LogEvent.PACKET_SENT,
                 uuid=recipient_uuid,
-                content=message
+                content=packet.content
             )
 
-    def broadcast(self, sender_uuid, message):
+    def broadcast_new(self, sender_uuid, packet: Packet, exclude=[]):
         sender_username = self.get_username(sender_uuid)
+        packet.sender = sender_username
 
         for recipient_uuid, recipient_info in self.connections.items():
-            if recipient_uuid == sender_uuid:
+            if recipient_uuid in ([sender_uuid] + exclude):
                 continue
 
-            recipient_username = recipient_info.username
+            packet.recipient = recipient_info.username
+            print(packet)
 
-            message_packet = MessagePacket(
-                sender=sender_username,
-                recipient=recipient_username,
-                content=message
-            )
-
-            recipient_info.socket.send(message_packet.to_json().encode())
+            recipient_info.socket.send(packet.to_json().encode())
 
             self.logger.log(
                 LogEvent.PACKET_SENT,
                 uuid=recipient_uuid,
-                content=message
+                content=packet.content
             )
 
     def get_username(self, uuid):
         if uuid is None:
-            return 'SERVER'
+            return None
         try:
             return self.connections[uuid].username
         except KeyError:
