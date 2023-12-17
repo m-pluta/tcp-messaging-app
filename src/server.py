@@ -37,7 +37,7 @@ class Server:
         # Init key variables and create logger
         self.port = port
         self.logger = Logger('./server.log')
-        self.files_path = 'files'
+        self.files_path = 'download'
         self.connections = {}
 
     def start(self):
