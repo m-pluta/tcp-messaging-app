@@ -3,6 +3,7 @@ import sys
 import socket
 import uuid
 import threading
+import os
 
 # Local Imports
 from logger import Logger, LogEvent
@@ -29,6 +30,7 @@ class Server:
         # Init key variables and create logger
         self.port = port
         self.logger = Logger('./server.log')
+        self.files_path = 'files'
         self.connections = {}
 
     def start(self):
@@ -117,8 +119,28 @@ class Server:
                     else:
                         self.broadcast(conn.uuid, packet_content)
                 case 'file_list_request':
-                    pass
+                    self.logger.log(
+                        LogEvent.FILE_LIST_REQUEST,
+                        uuid=conn.uuid
+                    )
+                    try:
+                        with os.scandir(self.files_path) as entries:
+                            files = [e.name for e in entries if e.is_file()]
+                    except FileNotFoundError:
+                        files = []
+
+                    if files:
+                        file_list = " ".join(files)
+                        self.unicast(None, conn.uuid, file_list)
+                    else:
+                        print(f'No files found in {self.files_path}')
+
                 case 'file_request':
+                    self.logger.log(
+                        LogEvent.DOWNLOAD_REQUEST,
+                        filename=packet.get('filename'),
+                        uuid=conn.uuid
+                    )
                     pass
 
         self.close_client(conn.uuid)

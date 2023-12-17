@@ -10,12 +10,16 @@ class LogEvent(Enum):
     SERVER_LISTENING = 3
     SERVER_CLOSE = 4
     SERVER_ERROR = 5
+
     USER_CONNECT = 6
-    USER_DISCONNECT = 7
-    PACKET_RECEIVED = 8
-    PACKET_SENT = 9
-    USER_THREAD_STARTED = 10
-    USER_DOWNLOAD_REQUEST = 11
+    USER_THREAD_STARTED = 7
+    USER_DISCONNECT = 8
+
+    PACKET_RECEIVED = 9
+    PACKET_SENT = 10
+
+    FILE_LIST_REQUEST = 11
+    DOWNLOAD_REQUEST = 12
 
     def get_max_length():
         return max([len(event.name) for event in LogEvent])
@@ -44,26 +48,38 @@ class Logger:
 
     def get_log_content(self, event_type, kwargs):
         # Unpack kwargs into local variables
-        port = kwargs.get("port")
-        uuid = kwargs.get("uuid")
-        ip_address = kwargs.get("ip_address")
-        client_port = kwargs.get("client_port")
-        content = kwargs.get("content")
+        port = kwargs.get('port')
+        uuid = kwargs.get('uuid')
+        ip_address = kwargs.get('ip_address')
+        client_port = kwargs.get('client_port')
+        content = kwargs.get('content')
+        filename = kwargs.get('filename')
 
         log_messages = {
-            LogEvent.SERVER_INIT_START: f'Server starting on port {port}',
-            LogEvent.SERVER_STARTED: f'Server started on port {port}',
+            LogEvent.SERVER_INIT_START: (
+                f'Server starting on port {port}'
+            ),
+            LogEvent.SERVER_STARTED: (
+                f'Server started on port {port}'
+            ),
             LogEvent.SERVER_LISTENING: (
-                f'Server started listening on port {port}'
+                f'Server listening on port {port}'
+            ),
+            LogEvent.SERVER_CLOSE: (
+                'Server shutting down'
+            ),
+            LogEvent.SERVER_ERROR: (
+                'Server encounted an error'
             ),
             LogEvent.USER_CONNECT: (
                 f'New client connection: '
-                f'uuid: {uuid}, '
-                f'ip_address: {ip_address}, '
-                f'client_port: {client_port}'
+                f'{ip_address}: {client_port}'
             ),
             LogEvent.USER_THREAD_STARTED: (
                 f'Client thread started for uuid: {uuid}'
+            ),
+            LogEvent.USER_DISCONNECT: (
+                f'Client disconnected: uuid: {uuid}'
             ),
             LogEvent.PACKET_RECEIVED: (
                 f'Packet received: '
@@ -75,8 +91,14 @@ class Logger:
                 f'uuid: {uuid}, '
                 f'Content: {content}'
             ),
-            LogEvent.USER_DISCONNECT: f'Client disconnected: uuid: {uuid}',
-            LogEvent.SERVER_CLOSE: 'Server shutting down',
+            LogEvent.FILE_LIST_REQUEST: (
+                f'Available files requested by '
+                f'uuid: {uuid}'
+            ),
+            LogEvent.DOWNLOAD_REQUEST: (
+                f'{filename} requested for download by '
+                f'uuid: {uuid}'
+            )
         }
 
         return log_messages.get(event_type, None)

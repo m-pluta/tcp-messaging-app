@@ -3,8 +3,18 @@ import select
 import sys
 import socket
 
+# External libraries
+import tkinter as tk
+from tkinter import filedialog
+
 # Local Imports
-from packet import Packet, MetadataPacket, MessagePacket
+from packet import (
+    Packet,
+    MetadataPacket,
+    MessagePacket,
+    FileListRequestPacket,
+    FileRequestPacket
+)
 
 
 class Client:
@@ -14,6 +24,7 @@ class Client:
         self.server_port = port
         self.is_active = True
         self.requested_disconnect = False
+        self.download_path = None
 
     def connect(self):
         # Setup socket
@@ -70,6 +81,26 @@ class Client:
                     content=message
                 )
                 client_socket.send(packet.to_json().encode())
+            case ['/list_files']:
+                # Send data to server
+                packet = FileListRequestPacket()
+                client_socket.send(packet.to_json().encode())
+            case ['/download', filename]:
+                # Create a Tkinter root window (it won't be shown)
+                root = tk.Tk()
+                root.withdraw()
+
+                folder_path = filedialog.askdirectory()
+                if folder_path:
+                    print(f"Selected folder: {folder_path}")
+                    self.download_path = folder_path
+                    packet = FileRequestPacket(filename=filename)
+                    client_socket.send(packet.to_json().encode())
+                else:
+                    print("No folder selected")
+
+                root.destroy()
+
             case _:
                 # Send data to server
                 packet = MessagePacket(
