@@ -110,7 +110,7 @@ class Server:
                 case 'download_request':
                     self.process_download_request_packet(packet, conn)
 
-        self.close_client(conn.uuid)
+        self.close_client(conn)
 
     def process_metadata_packet(self, incoming_packet, client_conn):
         # Extract username from metadata
@@ -125,7 +125,7 @@ class Server:
         # Send announcement to all other clients
         packet = AnnouncementPacket(
             content=(
-                f'{username} has joined the chat!'
+                f'{username} has joined the chat.'
             )
         )
         self.broadcast_new(None, packet, exclude=[client_conn.uuid])
@@ -229,9 +229,19 @@ class Server:
                 return conn_uuid
         return None
 
-    def close_client(self, client_uuid):
+    def close_client(self, client_conn):
+        client_uuid = client_conn.uuid
+
         if client_uuid in self.connections:
-            self.connections[client_uuid].socket.close()
+            # Send announcement to all other clients
+            packet = AnnouncementPacket(
+                content=(
+                    f'{client_conn.username} has left the chat.'
+                )
+            )
+            self.broadcast_new(None, packet, exclude=[client_uuid])
+
+            client_conn.socket.close()
             del self.connections[client_uuid]
             self.logger.log(
                 LogEvent.USER_DISCONNECT,
