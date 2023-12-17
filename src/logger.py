@@ -17,7 +17,7 @@ class LogEvent(Enum):
     USER_THREAD_STARTED = 10
     USER_DOWNLOAD_REQUEST = 11
 
-    def getMaxEventNameLength():
+    def get_max_length():
         return max([len(event.name) for event in LogEvent])
 
 
@@ -26,75 +26,83 @@ class Logger:
         # Clear current state of logfile
         self.log_filepath = log_filepath
         self.clear()
-
-        lenTimeStamp = len(self.getFormattedTimestamp())
-        maxEventLength = LogEvent.getMaxEventNameLength()
-
-        # Write header of log file
-        with open(self.log_filepath, 'a') as file:
-            file.write(f'{"Timestamp".ljust(lenTimeStamp)} | '
-                       f'{"Event Type".ljust(maxEventLength)} | '
-                       f'{"Event details"}\n')
-            file.write(f'{"".join(["-"] * 120)}\n')
+        self.write_log_file_header()
 
     def log(self, event_type, **kwargs):
-        timestamp = self.getFormattedTimestamp()
-        logContent = self.getLogContent(event_type, kwargs)
-        maxEventLength = LogEvent.getMaxEventNameLength()
-        log_entry = (f'{timestamp} | '
-                     f'{event_type.name.ljust(maxEventLength)} | '
-                     f'{logContent}')
-        print(log_entry)
+        timestamp = self.get_formatted_timestamp()
+        log_content = self.get_log_content(event_type, kwargs)
+        max_length = LogEvent.get_max_length()
+
+        log_entry = (
+            f'{timestamp} | '
+            f'{event_type.name.ljust(max_length)} | '
+            f'{log_content}'
+        )
+
         with open(self.log_filepath, 'a') as file:
             file.write(f'{log_entry}\n')
 
-    def getLogContent(self, event_type, kwargs):
-        match (event_type):
-            case LogEvent.SERVER_INIT_START:
-                return f'Server starting on port {kwargs.get("port")}'
+    def get_log_content(self, event_type, kwargs):
+        # Unpack kwargs into local variables
+        port = kwargs.get("port")
+        uuid = kwargs.get("uuid")
+        ip_address = kwargs.get("ip_address")
+        client_port = kwargs.get("client_port")
+        content = kwargs.get("content")
 
-            case LogEvent.SERVER_STARTED:
-                return f'Server started on port {kwargs.get("port")}'
+        log_messages = {
+            LogEvent.SERVER_INIT_START: f'Server starting on port {port}',
+            LogEvent.SERVER_STARTED: f'Server started on port {port}',
+            LogEvent.SERVER_LISTENING: (
+                f'Server started listening on port {port}'
+            ),
+            LogEvent.USER_CONNECT: (
+                f'New client connection: '
+                f'uuid: {uuid}, '
+                f'ip_address: {ip_address}, '
+                f'client_port: {client_port}'
+            ),
+            LogEvent.USER_THREAD_STARTED: (
+                f'Client thread started for uuid: {uuid}'
+            ),
+            LogEvent.PACKET_RECEIVED: (
+                f'Packet received: '
+                f'uuid: {uuid}, '
+                f'Content: {content}'
+            ),
+            LogEvent.PACKET_SENT: (
+                f'Packet sent: '
+                f'uuid: {uuid}, '
+                f'Content: {content}'
+            ),
+            LogEvent.USER_DISCONNECT: f'Client disconnected: uuid: {uuid}',
+            LogEvent.SERVER_CLOSE: 'Server shutting down',
+        }
 
-            case LogEvent.SERVER_LISTENING:
-                return f'Server started listening on port {kwargs.get("port")}'
-
-            case LogEvent.USER_CONNECT:
-                return (f'New client connection: '
-                        f'uuid: {kwargs.get("uuid")}, '
-                        f'ip_address: {kwargs.get("ip_address")}, '
-                        f'client_port: {kwargs.get("clientPort")}')
-
-            case LogEvent.USER_THREAD_STARTED:
-                return f'Client thread started for uuid: {kwargs.get("uuid")}'
-
-            case LogEvent.PACKET_RECEIVED:
-                return (f'Packet received: '
-                        f'uuid: {kwargs.get("uuid")}, '
-                        f'Content: {kwargs.get("content")}')
-
-            case LogEvent.PACKET_SENT:
-                return (f'Packet sent:'
-                        f'uuid: {kwargs.get("uuid")}, '
-                        f'Content: {kwargs.get("content")}')
-
-            case LogEvent.USER_DISCONNECT:
-                return f'Client disconnected: uuid: {kwargs.get("uuid")}'
-
-            case LogEvent.SERVER_CLOSE:
-                return 'Server shutting down'
-
-        return None
+        return log_messages.get(event_type, None)
 
     def clear(self):
         # Open and close file in write mode to clear
         with open(self.log_filepath, 'w'):
             pass
 
-    def getRawTimestamp(self):
+    def write_log_file_header(self):
+        ts_length = len(self.get_formatted_timestamp())
+        max_length = LogEvent.get_max_length()
+
+        # Write header of log file
+        with open(self.log_filepath, 'a') as file:
+            file.write(
+                f'{"Timestamp".ljust(ts_length)} | '
+                f'{"Event Type".ljust(max_length)} | '
+                f'{"Event details"}\n'
+            )
+            file.write(f'{"".join(["-"] * 120)}\n')
+
+    def get_raw_timestamp(self):
         return datetime.datetime.now()
 
-    def getFormattedTimestamp(self):
-        raw_ts = self.getRawTimestamp()
+    def get_formatted_timestamp(self):
+        raw_ts = self.get_raw_timestamp()
         return (f'{raw_ts.strftime("[%d/%b/%Y %H:%M:%S.")}'
                 f'{raw_ts.microsecond // 1000:03d}]')
