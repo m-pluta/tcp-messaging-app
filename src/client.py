@@ -9,11 +9,14 @@ from tkinter import filedialog
 
 # Local Imports
 from packet import (
+    HEADER_SIZE,
+    OutMessagePacket,
+    PacketType,
     Packet,
     MetadataPacket,
-    MessagePacket,
     FileListRequestPacket,
     DownloadRequestPacket,
+    send_packet
 )
 
 
@@ -22,6 +25,7 @@ class Client:
         self.username = username
         self.server_hostname = hostname
         self.server_port = port
+
         self.is_active = True
         self.requested_disconnect = False
         self.download_path = None
@@ -29,45 +33,55 @@ class Client:
     def connect(self):
         # Setup socket
         print(f"Connecting to {self.server_hostname}:{self.server_port}")
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        client_socket.connect((self.server_hostname, self.server_port))
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.connect((self.server_hostname, self.server_port))
 
         # Send metadata to server before beginning main transmission
         metadata_packet = MetadataPacket(username=self.username)
-        client_socket.send(metadata_packet.to_json().encode())
+        send_packet(self.socket, metadata_packet)
 
-        inputs = [client_socket, sys.stdin]
+        inputs = [self.socket, sys.stdin]
         while self.is_active:
             # Monitor for readability
             readable, _, _ = select.select(inputs, [], [])
 
             for sock in readable:
-                if sock is client_socket:
-                    self.handle_server_response(client_socket)
+                if sock is self.socket:
+                    self.handle_server_response()
 
                 elif sock is sys.stdin:
-                    self.hand_user_command(client_socket)
+                    self.hand_user_command()
 
                 if self.requested_disconnect:
                     self.is_active = False
                     break
 
-        client_socket.close()
+        self.socket.close()
 
-    def handle_server_response(self, client_socket):
+    def handle_server_response(self):
         # Receive response
-        data = client_socket.recv(1024).decode()
-
+        data = self.socket.recv(HEADER_SIZE).decode()
         incoming_packet = Packet.loads(data)
-        sender = incoming_packet.get("sender")
-        content = incoming_packet.get("content")
 
-        if sender:
-            print(f'{sender}: {content}')
-        else:
-            print(f'{content}')
+        if PacketType(incoming_packet.get('type')) == PacketType.HEADER:
+            expected_size = incoming_packet.get('size')
 
-    def hand_user_command(self, client_socket):
+            data = self.socket.recv(expected_size).decode()
+            incoming_packet = Packet.loads(data)
+
+            match PacketType(incoming_packet.get('type')):
+                case PacketType.IN_MESSAGE:
+                    sender = incoming_packet.get('sender')
+                    content = incoming_packet.get('content')
+                    if sender:
+                        print(f'{sender}: {content}')
+                    else:
+                        print(f'{content}')
+                case PacketType.ANNOUNCEMENT:
+                    content = incoming_packet.get('content')
+                    print(f'{content}')
+
+    def hand_user_command(self):
         # Read input from user
         message = input().rstrip()
         if not message:
@@ -78,16 +92,12 @@ class Client:
                 self.requested_disconnect = True
             case ['/msg', username, message]:
                 # Send data to server
-                packet = MessagePacket(
-                    sender=self.username,
-                    recipient=username,
-                    content=message
-                )
-                client_socket.send(packet.to_json().encode())
+                packet = OutMessagePacket(content=message, recipient=username)
+                send_packet(self.socket, packet)
             case ['/list_files']:
                 # Send data to server
                 packet = FileListRequestPacket()
-                client_socket.send(packet.to_json().encode())
+                send_packet(self.socket, packet)
             case ['/download', filename]:
                 # Create a Tkinter root window (it won't be shown)
                 root = tk.Tk()
@@ -98,7 +108,7 @@ class Client:
                     print(f"Selected folder: {folder_path}")
                     self.download_path = folder_path
                     packet = DownloadRequestPacket(filename=filename)
-                    client_socket.send(packet.to_json().encode())
+                    send_packet(self.socket, packet)
                 else:
                     print("No folder selected")
 
@@ -106,12 +116,8 @@ class Client:
 
             case _:
                 # Send data to server
-                packet = MessagePacket(
-                    sender=self.username,
-                    recipient=None,
-                    content=message
-                )
-                client_socket.send(packet.to_json().encode())
+                packet = OutMessagePacket(content=message, recipient=None)
+                send_packet(self.socket, packet)
 
 
 if __name__ == "__main__":

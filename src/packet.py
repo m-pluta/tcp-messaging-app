@@ -2,7 +2,8 @@
 from dataclasses import dataclass, asdict
 import json
 from enum import Enum
-import uuid
+
+HEADER_SIZE = 128  # Bytes
 
 
 class PacketType(Enum):
@@ -25,26 +26,37 @@ class Packet:
 
         # Convert PacketType enum to its name for JSON serialization
         if 'type' in packet_dict:
-            packet_dict['type'] = packet_dict['type'].name
-
-        # Convert UUID to string for JSON serialization
-        if 'tran_id' in packet_dict:
-            packet_dict['tran_id'] = str(packet_dict['tran_id'])
+            packet_dict['type'] = packet_dict['type'].value
 
         return packet_dict
 
+    def loads(data):
+        return json.loads(data)
 
-@dataclass
-class NetworkPacket(Packet):
-    tran_id: uuid.UUID
-    frag_id: int
-    data: dict
+
+def send_packet(socket, packet: Packet):
+    encoded_packet = packet.to_json().encode()
+
+    header_packet = HeaderPacket(len(encoded_packet))
+
+    print(encoded_packet)
+    print(header_packet)
+
+    socket.send(header_packet.to_json().encode())
+    socket.send(encoded_packet)
 
 
 @dataclass
 class HeaderPacket(Packet):
     size: int
     type: PacketType = PacketType.HEADER
+
+    def to_json(self):
+        header_json = json.dumps(self.get_serialisable_dict())
+
+        padded_json = header_json.ljust(HEADER_SIZE)
+
+        return padded_json
 
 
 @dataclass
@@ -85,14 +97,3 @@ class FileListRequestPacket(Packet):
 class DownloadRequestPacket(Packet):
     filename: str
     type: PacketType = PacketType.DOWNLOAD_REQUEST
-
-
-if __name__ == "__main__":
-    packet = OutMessagePacket(content="Hi Alice", recipient="Alice")
-    print(packet)
-    print(packet.to_json())
-
-    tran_id = uuid.uuid4()
-    network_packet = NetworkPacket(tran_id=tran_id, frag_id=0, data=packet.get_serialisable_dict())
-    print(network_packet)
-    print(network_packet.to_json())
