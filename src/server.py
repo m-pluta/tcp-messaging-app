@@ -16,7 +16,7 @@ from packet import (
     Packet,
     InMessagePacket,
     AnnouncementPacket,
-    send_packet,
+    send_packet
 )
 
 
@@ -77,7 +77,7 @@ class Server:
             except KeyboardInterrupt:
                 break
 
-        self.close_server()
+        self.close()
 
     def handle_client(self, conn):
         expected_size = HEADER_SIZE
@@ -149,6 +149,7 @@ class Server:
             self.unicast(packet, client_conn.uuid)
         else:
             print(f'No files found in {self.files_path}')
+            # TODO: handle no files on server
 
     def process_download_request_packet(self, incoming_packet, client_conn):
         filename = incoming_packet.get('filename')
@@ -194,7 +195,7 @@ class Server:
         if client_uuid in self.connections:
             # Send announcement to all other clients
             packet = AnnouncementPacket(
-                content=('{client_conn.username} has left the chat.')
+                content=(f'{client_conn.username} has left the chat.')
             )
             self.broadcast(packet, exclude=[client_uuid])
 
@@ -204,17 +205,14 @@ class Server:
             self.logger.log(LogEvent.USER_DISCONNECT, uuid=client_uuid)
 
     def close_client_sockets(self):
-        print("Received KeyboardInterrupt. Closing all client sockets...")
-        client_conns = list(self.connections.values())
-
-        for client_conn in client_conns:
+        for client_conn in self.connections.values():
             self.close_client(client_conn)
 
         # Handle someone connecting while the client sockets were being closed
-        if len(self.connections) > 0:
+        if self.connections:
             self.close_client_sockets()
 
-    def close_server(self):
+    def close(self):
         self.close_client_sockets()
         self.is_running = False
         self.socket.close()

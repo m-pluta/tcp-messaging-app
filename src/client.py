@@ -10,10 +10,10 @@ from tkinter import filedialog
 # Local Imports
 from packet import (
     HEADER_SIZE,
-    OutMessagePacket,
     PacketType,
     Packet,
     MetadataPacket,
+    OutMessagePacket,
     FileListRequestPacket,
     DownloadRequestPacket,
     send_packet
@@ -50,7 +50,7 @@ class Client:
                     self.handle_server_response()
 
                 elif sock is sys.stdin:
-                    self.hand_user_command()
+                    self.handle_user_command()
 
                 if self.requested_disconnect:
                     self.is_active = False
@@ -61,27 +61,27 @@ class Client:
     def handle_server_response(self):
         # Receive response
         data = self.socket.recv(HEADER_SIZE).decode()
-        incoming_packet = Packet.loads(data)
+        header_packet = Packet.loads(data)
 
-        if PacketType(incoming_packet.get('type')) == PacketType.HEADER:
-            expected_size = incoming_packet.get('size')
+        if PacketType(header_packet.get('type')) == PacketType.HEADER:
+            expected_size = header_packet.get('size')
 
             data = self.socket.recv(expected_size).decode()
-            incoming_packet = Packet.loads(data)
+            content_packet = Packet.loads(data)
 
-            match PacketType(incoming_packet.get('type')):
+            match PacketType(content_packet.get('type')):
                 case PacketType.IN_MESSAGE:
-                    sender = incoming_packet.get('sender')
-                    content = incoming_packet.get('content')
+                    sender = content_packet.get('sender')
+                    content = content_packet.get('content')
                     if sender:
                         print(f'{sender}: {content}')
                     else:
                         print(f'{content}')
                 case PacketType.ANNOUNCEMENT:
-                    content = incoming_packet.get('content')
+                    content = content_packet.get('content')
                     print(f'{content}')
 
-    def hand_user_command(self):
+    def handle_user_command(self):
         # Read input from user
         message = input().rstrip()
         if not message:

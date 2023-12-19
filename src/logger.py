@@ -27,7 +27,6 @@ class LogEvent(Enum):
 
 class Logger:
     def __init__(self, log_filepath: str):
-        # Clear current state of logfile
         self.log_filepath = log_filepath
         self.clear()
         self.write_log_file_header()
@@ -48,12 +47,12 @@ class Logger:
 
     def get_log_content(self, event_type, kwargs):
         # Unpack kwargs into local variables
-        port = kwargs.get('port')
-        uuid = kwargs.get('uuid')
-        ip_address = kwargs.get('ip_address')
-        client_port = kwargs.get('client_port')
-        content = kwargs.get('content')
-        filename = kwargs.get('filename')
+        port = kwargs.get('port', None)
+        uuid = kwargs.get('uuid', None)
+        ip_address = kwargs.get('ip_address', None)
+        client_port = kwargs.get('client_port', None)
+        content = kwargs.get('content', None)
+        filename = kwargs.get('filename', None)
 
         log_messages = {
             LogEvent.SERVER_INIT_START: (
@@ -109,22 +108,19 @@ class Logger:
             pass
 
     def write_log_file_header(self):
-        ts_length = len(self.get_formatted_timestamp())
+        timestamp_length = len(self.get_formatted_timestamp())
         max_length = LogEvent.get_max_length()
 
         # Write header of log file
         with open(self.log_filepath, 'a') as file:
             file.write(
-                f'{"Timestamp".ljust(ts_length)} | '
+                f'{"Timestamp".ljust(timestamp_length)} | '
                 f'{"Event Type".ljust(max_length)} | '
                 f'{"Event details"}\n'
             )
             file.write(f'{"".join(["-"] * 120)}\n')
 
-    def get_raw_timestamp(self):
-        return datetime.datetime.now()
-
     def get_formatted_timestamp(self):
-        raw_ts = self.get_raw_timestamp()
+        raw_ts = datetime.datetime.now()
         return (f'{raw_ts.strftime("[%d/%b/%Y %H:%M:%S.")}'
                 f'{raw_ts.microsecond // 1000:03d}]')

@@ -35,15 +35,13 @@ class Packet:
 
 
 def send_packet(socket, packet: Packet):
-    encoded_packet = packet.to_json().encode()
+    content_packet = packet.to_json().encode()
+    content_packet_size = len(content_packet)
 
-    header_packet = HeaderPacket(len(encoded_packet))
-
-    print(encoded_packet)
-    print(header_packet)
+    header_packet = HeaderPacket(content_packet_size)
 
     socket.send(header_packet.to_json().encode())
-    socket.send(encoded_packet)
+    socket.send(content_packet)
 
 
 @dataclass
