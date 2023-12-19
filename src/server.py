@@ -1,9 +1,9 @@
 # Standard Library Imports
 import sys
 import socket
-import uuid
 import threading
 import os
+import time
 
 # Local Imports
 from logger import (
@@ -21,18 +21,11 @@ from packet import (
 
 
 class ClientConnection:
-    next_id = 0
-
     def __init__(self, socket, address):
         self.socket = socket
         self.ip_address = address[0]
         self.port = address[1]
-        self.uuid = f'uuid-{ClientConnection.next_id}'
-        ClientConnection.next_id += 1
-
-    # TODO: replace ids with uuid
-    def generate_uuid(self):
-        return str(uuid.uuid4())
+        self.username = None
 
 
 class Server:
@@ -48,7 +41,13 @@ class Server:
         self.logger.log(LogEvent.SERVER_INIT_START, port=self.port)
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.bind(("", self.port))
+
+        try:
+            self.socket.bind(("", self.port))
+        except Exception:
+            self.logger.log(LogEvent.SERVER_BIND_ERROR)
+            return
+
         self.socket.listen(1)
         self.is_running = True
 
@@ -64,8 +63,7 @@ class Server:
                 # New client tries to establish a connection
                 client_socket, addr = self.socket.accept()
                 conn = ClientConnection(client_socket, addr)
-                self.connections[conn.uuid] = conn
-                self.logger.log(LogEvent.USER_CONNECT, uuid=conn.uuid,
+                self.logger.log(LogEvent.USER_CONNECT,
                                 ip_address=conn.ip_address,
                                 client_port=conn.port)
 
@@ -73,7 +71,9 @@ class Server:
                 client_thread = threading.Thread(target=self.handle_client,
                                                  args=(conn,))
                 client_thread.start()
-                self.logger.log(LogEvent.USER_THREAD_STARTED, uuid=conn.uuid)
+                self.logger.log(LogEvent.USER_THREAD_STARTED,
+                                ip_address=conn.ip_address,
+                                client_port=conn.port)
             except KeyboardInterrupt:
                 break
 
@@ -110,32 +110,38 @@ class Server:
     def process_metadata_packet(self, incoming_packet, client_conn):
         # Extract username from metadata
         username = incoming_packet.get('username')
-        self.logger.log(LogEvent.PACKET_RECEIVED, uuid=client_conn.uuid,
-                        content=username)
+
+        self.connections[username] = client_conn
         client_conn.username = username
 
+        self.logger.log(LogEvent.PACKET_RECEIVED,
+                        username=client_conn.username,
+                        content=client_conn.username)
+
         # Send announcement to all other clients
-        packet = AnnouncementPacket((f'{username} has joined the chat.'))
-        self.broadcast(packet, exclude=[client_conn.uuid])
+        packet = AnnouncementPacket(
+            f'{client_conn.username} has joined the chat.')
+        self.broadcast(packet, exclude=[client_conn.username])
 
     def process_message_packet(self, incoming_packet, client_conn):
         packet_content = incoming_packet.get('content')
-        self.logger.log(LogEvent.PACKET_RECEIVED, uuid=client_conn.uuid,
+        self.logger.log(LogEvent.PACKET_RECEIVED,
+                        username=client_conn.username,
                         content=packet_content)
 
-        recipient_username = incoming_packet.get('recipient')
-        recipient_uuid = self.get_uuid(recipient_username)
+        recipient = incoming_packet.get('recipient')
 
         packet = InMessagePacket(content=packet_content,
                                  sender=client_conn.username)
 
-        if recipient_uuid:
-            self.unicast(packet, recipient_uuid)
+        if recipient:
+            self.unicast(packet, recipient)
         else:
-            self.broadcast(packet, exclude=[client_conn.uuid])
+            self.broadcast(packet, exclude=[client_conn.username])
 
     def process_file_list_request_packet(self, client_conn):
-        self.logger.log(LogEvent.FILE_LIST_REQUEST, uuid=client_conn.uuid)
+        self.logger.log(LogEvent.FILE_LIST_REQUEST,
+                        username=client_conn.username)
         try:
             with os.scandir(self.files_path) as entries:
                 files = [e.name for e in entries if e.is_file()]
@@ -146,67 +152,57 @@ class Server:
             file_list = " ".join(files)
 
             packet = InMessagePacket(sender=None, content=file_list)
-            self.unicast(packet, client_conn.uuid)
+            self.unicast(packet, client_conn.username)
         else:
             print(f'No files found in {self.files_path}')
             # TODO: handle no files on server
 
     def process_download_request_packet(self, incoming_packet, client_conn):
         filename = incoming_packet.get('filename')
-        self.logger.log(LogEvent.DOWNLOAD_REQUEST, filename=filename,
-                        uuid=client_conn.uuid)
+        self.logger.log(LogEvent.DOWNLOAD_REQUEST,
+                        username=client_conn.username,
+                        filename=filename)
 
-    def unicast(self, packet: Packet, recipient_uuid):
-        if recipient_uuid in self.connections:
+    def unicast(self, packet: Packet, recipient):
+        if recipient in self.connections:
 
-            recipient_socket = self.connections[recipient_uuid].socket
+            recipient_socket = self.connections[recipient].socket
             send_packet(recipient_socket, packet)
 
-            self.logger.log(LogEvent.PACKET_SENT, uuid=recipient_uuid,
+            self.logger.log(LogEvent.PACKET_SENT, username=recipient,
                             content=packet.content)
 
     def broadcast(self, packet: Packet, exclude=[]):
-        for recipient_uuid, recipient_info in self.connections.items():
-            if recipient_uuid in exclude:
+        for recipient, recipient_conn in self.connections.items():
+            if recipient in exclude:
                 continue
 
-            send_packet(recipient_info.socket, packet)
+            send_packet(recipient_conn.socket, packet)
 
-            self.logger.log(LogEvent.PACKET_SENT, uuid=recipient_uuid,
+            self.logger.log(LogEvent.PACKET_SENT, username=recipient,
                             content=packet.content)
 
-    def get_username(self, uuid):
-        if uuid is None:
-            return None
-        try:
-            return self.connections[uuid].username
-        except KeyError:
-            print(f'{uuid} does not exist')
-
-    def get_uuid(self, username):
-        for conn_uuid, conn_info in self.connections.items():
-            if conn_info.username == username:
-                return conn_uuid
-        return None
-
     def close_client(self, client_conn):
-        client_uuid = client_conn.uuid
+        client_username = client_conn.username
 
-        if client_uuid in self.connections:
+        if client_username in self.connections:
+            # TODO: Send closed socket a message saying it is being closed.
+
+            client_conn.socket.close()
+            del self.connections[client_username]
+            self.logger.log(LogEvent.USER_DISCONNECT, username=client_username)
+
             # Send announcement to all other clients
             packet = AnnouncementPacket(
-                content=(f'{client_conn.username} has left the chat.')
+                (f'{client_username} has left the chat.')
             )
-            self.broadcast(packet, exclude=[client_uuid])
+            self.broadcast(packet, exclude=[client_username])
 
-            # TODO: Send closed socket a message saying it is being closed.
-            client_conn.socket.close()
-            del self.connections[client_uuid]
-            self.logger.log(LogEvent.USER_DISCONNECT, uuid=client_uuid)
 
     def close_client_sockets(self):
-        for client_conn in self.connections.values():
-            self.close_client(client_conn)
+        clients = list(self.connections.keys())
+        for client in clients:
+            self.close_client(self.connections[client])
 
         # Handle someone connecting while the client sockets were being closed
         if self.connections:

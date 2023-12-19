@@ -9,7 +9,7 @@ class LogEvent(Enum):
     SERVER_STARTED = 2
     SERVER_LISTENING = 3
     SERVER_CLOSE = 4
-    SERVER_ERROR = 5
+    SERVER_BIND_ERROR = 5
 
     USER_CONNECT = 6
     USER_THREAD_STARTED = 7
@@ -41,6 +41,7 @@ class Logger:
             f'{event_type.name.ljust(max_length)} | '
             f'{log_content}'
         )
+        print(log_content)
 
         with open(self.log_filepath, 'a') as file:
             file.write(f'{log_entry}\n')
@@ -48,7 +49,8 @@ class Logger:
     def get_log_content(self, event_type, kwargs):
         # Unpack kwargs into local variables
         port = kwargs.get('port', None)
-        uuid = kwargs.get('uuid', None)
+        delay = kwargs.get('delay', None)
+        username = kwargs.get('username', None)
         ip_address = kwargs.get('ip_address', None)
         client_port = kwargs.get('client_port', None)
         content = kwargs.get('content', None)
@@ -67,36 +69,29 @@ class Logger:
             LogEvent.SERVER_CLOSE: (
                 'Server shutting down'
             ),
-            LogEvent.SERVER_ERROR: (
-                'Server encounted an error'
+            LogEvent.SERVER_BIND_ERROR: (
+                f'Server encounted an error when binding. Port already in use'
             ),
             LogEvent.USER_CONNECT: (
-                f'New client connection: '
-                f'{ip_address}: {client_port}'
+                f'New client connection: {ip_address}:{client_port}'
             ),
             LogEvent.USER_THREAD_STARTED: (
-                f'Client thread started for uuid: {uuid}'
+                f'Client thread started for {ip_address}:{client_port}'
             ),
             LogEvent.USER_DISCONNECT: (
-                f'Client disconnected: uuid: {uuid}'
+                f'Client {username} disconnected'
             ),
             LogEvent.PACKET_RECEIVED: (
-                f'Packet received: '
-                f'uuid: {uuid}, '
-                f'Content: {content}'
+                f'Packet received from {username}, Content: {content}'
             ),
             LogEvent.PACKET_SENT: (
-                f'Packet sent: '
-                f'uuid: {uuid}, '
-                f'Content: {content}'
+                f'Packet sent to {username}, Content: {content}'
             ),
             LogEvent.FILE_LIST_REQUEST: (
-                f'Available files requested by '
-                f'uuid: {uuid}'
+                f'List of available files requested by {username}'
             ),
             LogEvent.DOWNLOAD_REQUEST: (
-                f'{filename} requested for download by '
-                f'uuid: {uuid}'
+                f'Client {username} requested to download {filename}'
             )
         }
 
