@@ -80,6 +80,15 @@ class Client:
                 case PacketType.ANNOUNCEMENT:
                     content = content_packet.get('content')
                     print(f'{content}')
+                case PacketType.DUPLICATE_USERNAME:
+                    content = content_packet.get('content')
+                    print('This username is already taken')
+                    print(f'Current users connected to the server: {content}')
+
+                    newUsername = input('Enter a new username: ')
+                    metadata_packet = MetadataPacket(username=newUsername)
+                    self.username = newUsername
+                    send_packet(self.socket, metadata_packet)
 
     def handle_user_command(self):
         # Read input from user

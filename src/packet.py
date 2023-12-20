@@ -14,6 +14,7 @@ class PacketType(Enum):
     ANNOUNCEMENT = 5
     FILE_LIST_REQUEST = 6
     DOWNLOAD_REQUEST = 7
+    DUPLICATE_USERNAME = 8
 
 
 @dataclass
@@ -95,3 +96,9 @@ class FileListRequestPacket(Packet):
 class DownloadRequestPacket(Packet):
     filename: str
     type: PacketType = PacketType.DOWNLOAD_REQUEST
+
+
+@dataclass
+class DuplicateUsernamePacket(Packet):
+    content: str
+    type: PacketType = PacketType.DUPLICATE_USERNAME

@@ -16,6 +16,7 @@ from packet import (
     Packet,
     InMessagePacket,
     AnnouncementPacket,
+    DuplicateUsernamePacket,
     send_packet
 )
 
@@ -111,6 +112,10 @@ class Server:
         # Extract username from metadata
         username = incoming_packet.get('username')
 
+        if username in self.connections:
+            self.handle_duplicate_username(client_conn)
+            return
+
         self.connections[username] = client_conn
         client_conn.username = username
 
@@ -122,6 +127,12 @@ class Server:
         packet = AnnouncementPacket(
             f'{client_conn.username} has joined the chat.')
         self.broadcast(packet, exclude=[client_conn.username])
+
+    def handle_duplicate_username(self, client_conn):
+        current_users = ", ".join(self.connections.keys())
+        packet = DuplicateUsernamePacket(content=current_users)
+
+        send_packet(client_conn.socket, packet)
 
     def process_message_packet(self, incoming_packet, client_conn):
         packet_content = incoming_packet.get('content')
@@ -197,7 +208,6 @@ class Server:
                 (f'{client_username} has left the chat.')
             )
             self.broadcast(packet, exclude=[client_username])
-
 
     def close_client_sockets(self):
         clients = list(self.connections.keys())
