@@ -18,9 +18,6 @@ class PacketType(Enum):
     DOWNLOAD = 8
     DUPLICATE_USERNAME = 9
 
-    def get(type: str):
-        return PacketType(int(type))
-
 
 @dataclass
 class HeaderPacket():
@@ -37,7 +34,7 @@ class HeaderPacket():
         return bytes
     
     def decode(bytes, encoding=ENCODING):
-        type = PacketType.get(bytes[:4].decode(encoding))
+        type = PacketType(int(bytes[:4].decode(encoding)))
         bytes = bytes[4:]
         
         size = int(bytes[:16].decode(encoding))
@@ -126,29 +123,3 @@ class DownloadPacket(Packet):
         header_bytes = header_packet.to_bytes()
 
         return header_bytes + content_bytes
-
-
-@dataclass
-class DuplicateUsernamePacket(Packet):
-    content: str
-    type: PacketType = PacketType.DUPLICATE_USERNAME
-
-
-if __name__ == "__main__":
-    header_packet = HeaderPacket(PacketType.DOWNLOAD, 1761644)
-    # print(header_packet.to_bytes())
-
-    packet = MetadataPacket('user1')
-    print(packet.to_bytes())
-    packet = OutMessagePacket('Hey brian', 'brian')
-    print(packet.to_bytes())
-    packet = InMessagePacket('Hey Robbie', 'robbie')
-    print(packet.to_bytes())
-    packet = AnnouncementPacket('robbie has left the chat')
-    print(packet.to_bytes())
-    packet = FileListRequestPacket()
-    print(packet.to_bytes())
-    packet = DownloadRequestPacket('hi.txt')
-    print(packet.to_bytes())
-    packet = DuplicateUsernamePacket('robbie brian andy')
-    print(packet.to_bytes())
