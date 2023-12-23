@@ -1,82 +1,90 @@
 # Standard Library Imports
 from dataclasses import dataclass, asdict
-import json
 from enum import Enum
 
-HEADER_SIZE = 128  # Bytes
+PACKET_SIZE = 1000           # Bytes
+HEADER_SIZE = 100            # Bytes
+ENCODING = 'utf-8'
 
 
 class PacketType(Enum):
-    HEADER = 1
-    METADATA = 2
-    OUT_MESSAGE = 3
-    IN_MESSAGE = 4
-    ANNOUNCEMENT = 5
-    FILE_LIST_REQUEST = 6
+    METADATA = 1
+    OUT_MESSAGE = 2
+    IN_MESSAGE = 3
+    ANNOUNCEMENT = 4
+    FILE_LIST_REQUEST = 5
+    FILE_LIST = 6
     DOWNLOAD_REQUEST = 7
-    DUPLICATE_USERNAME = 8
+    DOWNLOAD = 8
+    DUPLICATE_USERNAME = 9
+
+    def get(type: str):
+        return PacketType(int(type))
+
+
+@dataclass
+class HeaderPacket():
+    type: PacketType
+    size: int
+
+    def to_bytes(self, encoding=ENCODING):
+        bytes = b''
+        bytes += str(self.type.value).encode(encoding).ljust(4)
+        bytes += str(self.size).encode(encoding).ljust(16)
+
+        bytes = bytes.ljust(HEADER_SIZE)
+
+        return bytes
+    
+    def decode(bytes, encoding=ENCODING):
+        type = PacketType.get(bytes[:4].decode(encoding))
+        bytes = bytes[4:]
+        
+        size = int(bytes[:16].decode(encoding))
+        bytes = bytes[16:]
+        return {'type': type, 'size': size}
 
 
 @dataclass
 class Packet:
-    def to_json(self):
-        return json.dumps(self.get_serialisable_dict())
-
-    def get_serialisable_dict(self):
+    def to_bytes(self, encoding=ENCODING):
         packet_dict = asdict(self)
 
-        # Convert PacketType enum to its name for JSON serialization
-        if 'type' in packet_dict:
-            packet_dict['type'] = packet_dict['type'].value
+        content_bytes = b''
 
-        return packet_dict
+        for key, value in packet_dict.items():
+            if key not in ('type', 'content'):
+                if value is not None:
+                    content_bytes += (f'<{value}>'.encode(encoding)
+                                    .ljust(PACKET_SIZE))
+                else:
+                    content_bytes += (''.join([' '] * PACKET_SIZE)).encode(ENCODING)
 
-    def loads(data):
-        return json.loads(data)
+        if 'content' in packet_dict:
+            content_bytes += self.content.encode(encoding)
 
+        header_packet = HeaderPacket(self.type, len(content_bytes))
+        header_bytes = header_packet.to_bytes()
 
-def send_packet(socket, packet: Packet):
-    content_packet = packet.to_json().encode()
-    content_packet_size = len(content_packet)
-
-    header_packet = HeaderPacket(content_packet_size)
-
-    socket.send(header_packet.to_json().encode())
-    socket.send(content_packet)
-
-
-@dataclass
-class HeaderPacket(Packet):
-    size: int
-    type: PacketType = PacketType.HEADER
-
-    def to_json(self):
-        header_json = json.dumps(self.get_serialisable_dict())
-
-        padded_json = header_json.ljust(HEADER_SIZE)
-
-        return padded_json
-
+        return header_bytes + content_bytes
+    
 
 @dataclass
 class MetadataPacket(Packet):
-    username: str
+    content: str
     type: PacketType = PacketType.METADATA
 
 
 @dataclass
-class MessagePacketBase(Packet):
+class OutMessagePacket(Packet):
     content: str
-
-
-@dataclass
-class OutMessagePacket(MessagePacketBase):
     recipient: str
     type: PacketType = PacketType.OUT_MESSAGE
 
 
 @dataclass
-class InMessagePacket(MessagePacketBase):
+class InMessagePacket(Packet):
+    content: str
     sender: str
     type: PacketType = PacketType.IN_MESSAGE
 
@@ -93,12 +101,54 @@ class FileListRequestPacket(Packet):
 
 
 @dataclass
+class FileListPacket(Packet):
+    type: PacketType = PacketType.FILE_LIST
+
+
+@dataclass
 class DownloadRequestPacket(Packet):
-    filename: str
+    content: str
     type: PacketType = PacketType.DOWNLOAD_REQUEST
+
+
+@dataclass
+class DownloadPacket(Packet):
+    filename: str
+    bytes: bytes
+    type: PacketType = PacketType.DOWNLOAD
+
+    def to_bytes(self, encoding=ENCODING):
+        encoded_filename = f'<{self.filename}>'.encode(encoding)
+        
+        content_bytes = encoded_filename.ljust(PACKET_SIZE) + self.bytes
+
+        header_packet = HeaderPacket(self.type, len(content_bytes))
+        header_bytes = header_packet.to_bytes()
+
+        return header_bytes + content_bytes
 
 
 @dataclass
 class DuplicateUsernamePacket(Packet):
     content: str
     type: PacketType = PacketType.DUPLICATE_USERNAME
+
+
+if __name__ == "__main__":
+    header_packet = HeaderPacket(PacketType.DOWNLOAD, 1761644)
+    # print(header_packet.to_bytes())
+
+    packet = MetadataPacket('user1')
+    print(packet.to_bytes())
+    packet = OutMessagePacket('Hey brian', 'brian')
+    print(packet.to_bytes())
+    packet = InMessagePacket('Hey Robbie', 'robbie')
+    print(packet.to_bytes())
+    packet = AnnouncementPacket('robbie has left the chat')
+    print(packet.to_bytes())
+    packet = FileListRequestPacket()
+    print(packet.to_bytes())
+    packet = DownloadRequestPacket('hi.txt')
+    print(packet.to_bytes())
+    packet = DuplicateUsernamePacket('robbie brian andy')
+    print(packet.to_bytes())

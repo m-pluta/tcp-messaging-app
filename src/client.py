@@ -1,4 +1,5 @@
 # Standard Library Imports
+import os
 import select
 import sys
 import socket
@@ -9,15 +10,17 @@ from tkinter import filedialog
 
 # Local Imports
 from packet import (
+    ENCODING,
     HEADER_SIZE,
+    PACKET_SIZE,
     PacketType,
-    Packet,
+    HeaderPacket,
     MetadataPacket,
     OutMessagePacket,
     FileListRequestPacket,
     DownloadRequestPacket,
-    send_packet
 )
+from utility import recv_to_buffer, extract_delimiter
 
 
 class Client:
@@ -28,7 +31,7 @@ class Client:
 
         self.is_active = True
         self.requested_disconnect = False
-        self.download_path = None
+        self.save_directory = f'{username}/'
 
     def connect(self):
         # Setup socket
@@ -37,8 +40,8 @@ class Client:
         self.socket.connect((self.server_hostname, self.server_port))
 
         # Send metadata to server before beginning main transmission
-        metadata_packet = MetadataPacket(username=self.username)
-        send_packet(self.socket, metadata_packet)
+        packet = MetadataPacket(content=self.username)
+        self.socket.sendall(packet.to_bytes())
 
         inputs = [self.socket, sys.stdin]
         while self.is_active:
@@ -58,37 +61,53 @@ class Client:
 
         self.socket.close()
 
+
     def handle_server_response(self):
-        # Receive response
-        data = self.socket.recv(HEADER_SIZE).decode()
-        header_packet = Packet.loads(data)
+        header_data = self.socket.recv(HEADER_SIZE)
+        print(f'Header length: {len(header_data)}')
+        header: dict = HeaderPacket.decode(header_data)
 
-        if PacketType(header_packet.get('type')) == PacketType.HEADER:
-            expected_size = header_packet.get('size')
+        print(header.get('size', 0))
+        content_data = recv_to_buffer(self.socket, 
+                                      header.get('size', 0))
+        print(f'Content data bytes: {len(content_data)}')
 
-            data = self.socket.recv(expected_size).decode()
-            content_packet = Packet.loads(data)
-
-            match PacketType(content_packet.get('type')):
-                case PacketType.IN_MESSAGE:
-                    sender = content_packet.get('sender')
-                    content = content_packet.get('content')
-                    if sender:
-                        print(f'{sender}: {content}')
-                    else:
-                        print(f'{content}')
-                case PacketType.ANNOUNCEMENT:
-                    content = content_packet.get('content')
+        match header.get('type'):
+            case PacketType.IN_MESSAGE:
+                sender = extract_delimiter(content_data[:PACKET_SIZE].decode(ENCODING))
+                content = content_data[PACKET_SIZE:].decode(ENCODING)
+                if sender:
+                    print(f'{sender}: {content}')
+                else:
                     print(f'{content}')
-                case PacketType.DUPLICATE_USERNAME:
-                    content = content_packet.get('content')
-                    print('This username is already taken')
-                    print(f'Current users connected to the server: {content}')
+            case PacketType.ANNOUNCEMENT:
+                content = content_data.decode(ENCODING)
+                print(f'{content}')
+            case PacketType.DUPLICATE_USERNAME:
+                content = content_data.decode(ENCODING)
+                print('This username is already taken')
+                print(f'Current users connected to the server: {content}')
 
-                    newUsername = input('Enter a new username: ')
-                    metadata_packet = MetadataPacket(username=newUsername)
-                    self.username = newUsername
-                    send_packet(self.socket, metadata_packet)
+                newUsername = input('Enter a new username: ')
+
+                packet = MetadataPacket(username=newUsername)
+                self.socket.sendall(packet.to_bytes())
+
+                self.username = newUsername
+            case PacketType.DOWNLOAD:
+                if not os.path.exists(self.save_directory):
+                    os.makedirs(self.save_directory)
+
+                target_filename = extract_delimiter(content_data[:PACKET_SIZE].decode(ENCODING))
+                file_data = content_data[PACKET_SIZE:]
+
+                print(target_filename)
+
+                download_path = self.save_directory + target_filename
+                print(f"File will be saved to: {download_path}")
+
+                with open(download_path, 'wb') as file:
+                    file.write(file_data)
 
     def handle_user_command(self):
         # Read input from user
@@ -100,33 +119,25 @@ class Client:
             case ['/disconnect']:
                 self.requested_disconnect = True
             case ['/msg', username, message]:
-                # Send data to server
+                # Direct message a specific client
+                if username == self.username:
+                    print('Select someone other than yourself to directly message')
+                    return
+                
                 packet = OutMessagePacket(content=message, recipient=username)
-                send_packet(self.socket, packet)
+                self.socket.sendall(packet.to_bytes())
             case ['/list_files']:
-                # Send data to server
+                # Request a list of all available files
                 packet = FileListRequestPacket()
-                send_packet(self.socket, packet)
+                self.socket.sendall(packet.to_bytes())
             case ['/download', filename]:
-                # Create a Tkinter root window (it won't be shown)
-                root = tk.Tk()
-                root.withdraw()
-
-                folder_path = filedialog.askdirectory()
-                if folder_path:
-                    print(f"Selected folder: {folder_path}")
-                    self.download_path = folder_path
-                    packet = DownloadRequestPacket(filename=filename)
-                    send_packet(self.socket, packet)
-                else:
-                    print("No folder selected")
-
-                root.destroy()
-
+                # Request to download a certain file
+                packet = DownloadRequestPacket(content=filename)
+                self.socket.sendall(packet.to_bytes())
             case _:
-                # Send data to server
+                # Send message to everyone
                 packet = OutMessagePacket(content=message, recipient=None)
-                send_packet(self.socket, packet)
+                self.socket.sendall(packet.to_bytes())
 
 
 if __name__ == "__main__":

@@ -49,7 +49,6 @@ class Logger:
     def get_log_content(self, event_type, kwargs):
         # Unpack kwargs into local variables
         port = kwargs.get('port', None)
-        delay = kwargs.get('delay', None)
         username = kwargs.get('username', None)
         ip_address = kwargs.get('ip_address', None)
         client_port = kwargs.get('client_port', None)

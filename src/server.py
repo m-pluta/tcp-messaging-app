@@ -3,7 +3,6 @@ import sys
 import socket
 import threading
 import os
-import time
 
 # Local Imports
 from logger import (
@@ -11,22 +10,29 @@ from logger import (
     LogEvent,
 )
 from packet import (
+    ENCODING,
     HEADER_SIZE,
+    PACKET_SIZE,
+    DownloadPacket,
+    HeaderPacket,
     PacketType,
     Packet,
     InMessagePacket,
     AnnouncementPacket,
-    DuplicateUsernamePacket,
-    send_packet
+    DuplicateUsernamePacket
 )
+from utility import extract_delimiter, recv_to_buffer
 
 
 class ClientConnection:
-    def __init__(self, socket, address):
+    def __init__(self, socket: socket.socket, address: tuple):
         self.socket = socket
         self.ip_address = address[0]
         self.port = address[1]
         self.username = None
+
+    def send(self, bytes: bytearray):
+        self.socket.sendall(bytes)
 
 
 class Server:
@@ -42,13 +48,9 @@ class Server:
         self.logger.log(LogEvent.SERVER_INIT_START, port=self.port)
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
-        try:
-            self.socket.bind(("", self.port))
-        except Exception:
-            self.logger.log(LogEvent.SERVER_BIND_ERROR)
-            return
-
+        self.socket.bind(("", self.port))
         self.socket.listen(1)
         self.is_running = True
 
@@ -80,38 +82,32 @@ class Server:
 
         self.close()
 
-    def handle_client(self, conn):
-        expected_size = HEADER_SIZE
+    def handle_client(self, conn: ClientConnection):
         while True:
             # Check if client disconnected
-            data = conn.socket.recv(expected_size)
-            if not data:
+            header_data = conn.socket.recv(HEADER_SIZE)
+            if not header_data:
                 break
 
-            # Handle client sending a packet to the server
-            packet = Packet.loads(data.decode())
+            header: dict = HeaderPacket.decode(header_data)
 
-            match PacketType(packet.get('type')):
-                case PacketType.HEADER:
-                    expected_size = packet.get('size')
-                    continue
+            content_data = recv_to_buffer(conn.socket,
+                                          header.get('size'))
+
+            match header.get('type'):
                 case PacketType.METADATA:
-                    self.process_metadata_packet(packet, conn)
+                    self.process_metadata_packet(content_data, conn)
                 case PacketType.OUT_MESSAGE:
-                    self.process_message_packet(packet, conn)
+                    self.process_message_packet(content_data, conn)
                 case PacketType.FILE_LIST_REQUEST:
                     self.process_file_list_request_packet(conn)
                 case PacketType.DOWNLOAD_REQUEST:
-                    self.process_download_request_packet(packet, conn)
-
-            expected_size = HEADER_SIZE
+                    self.process_download_request_packet(content_data, conn)
 
         self.close_client(conn)
 
-    def process_metadata_packet(self, incoming_packet, client_conn):
-        # Extract username from metadata
-        username = incoming_packet.get('username')
-
+    def process_metadata_packet(self, data, client_conn):
+        username = data.decode(ENCODING)
         if username in self.connections:
             self.handle_duplicate_username(client_conn)
             return
@@ -125,30 +121,34 @@ class Server:
 
         # Send announcement to all other clients
         packet = AnnouncementPacket(
-            f'{client_conn.username} has joined the chat.')
-        self.broadcast(packet, exclude=[client_conn.username])
+            content=f'{client_conn.username} has joined the chat.')
+        bytes = packet.to_bytes()
+
+        self.broadcast(bytes, exclude=[client_conn.username])
 
     def handle_duplicate_username(self, client_conn):
         current_users = ", ".join(self.connections.keys())
         packet = DuplicateUsernamePacket(content=current_users)
+        bytes = packet.to_bytes()
+        client_conn.socket.sendall(bytes)
 
-        send_packet(client_conn.socket, packet)
+    def process_message_packet(self, data, client_conn):
+        recipient = extract_delimiter(data[:PACKET_SIZE].decode(ENCODING))
+        message_content = data[PACKET_SIZE:].decode(ENCODING)
 
-    def process_message_packet(self, incoming_packet, client_conn):
-        packet_content = incoming_packet.get('content')
         self.logger.log(LogEvent.PACKET_RECEIVED,
                         username=client_conn.username,
-                        content=packet_content)
+                        content=message_content)
 
-        recipient = incoming_packet.get('recipient')
-
-        packet = InMessagePacket(content=packet_content,
+        packet = InMessagePacket(content=message_content,
                                  sender=client_conn.username)
 
+        bytes = packet.to_bytes()
+
         if recipient:
-            self.unicast(packet, recipient)
+            self.unicast(bytes, recipient)
         else:
-            self.broadcast(packet, exclude=[client_conn.username])
+            self.broadcast(bytes, exclude=[client_conn.username])
 
     def process_file_list_request_packet(self, client_conn):
         self.logger.log(LogEvent.FILE_LIST_REQUEST,
@@ -163,35 +163,52 @@ class Server:
             file_list = " ".join(files)
 
             packet = InMessagePacket(sender=None, content=file_list)
-            self.unicast(packet, client_conn.username)
+            bytes = packet.to_bytes()
+            self.unicast(bytes, client_conn.username)
         else:
             print(f'No files found in {self.files_path}')
             # TODO: handle no files on server
 
-    def process_download_request_packet(self, incoming_packet, client_conn):
-        filename = incoming_packet.get('filename')
+    def process_download_request_packet(self, data, client_conn):
+        filename = data.decode(ENCODING)
+        filepath = f'{self.files_path}/{filename}'
+
+        try:
+            with open(filepath, 'rb') as file:
+                file_bytes = file.read()
+        except FileNotFoundError:
+            print(f"File not found: {filepath}")
+            return None
+        
+        print(f'Raw file bytes: {len(file_bytes)}')
+        packet = DownloadPacket(filename, file_bytes)
+        bytes = packet.to_bytes()
+        print(f'Total file bytes: {len(bytes)}')
+        print(f'Header bytes: {bytes[:HEADER_SIZE]}')
+        client_conn.socket.sendall(bytes)
+
         self.logger.log(LogEvent.DOWNLOAD_REQUEST,
                         username=client_conn.username,
                         filename=filename)
 
-    def unicast(self, packet: Packet, recipient):
+    def unicast(self, bytes, recipient):
         if recipient in self.connections:
 
             recipient_socket = self.connections[recipient].socket
-            send_packet(recipient_socket, packet)
+            recipient_socket.sendall(bytes)
 
-            self.logger.log(LogEvent.PACKET_SENT, username=recipient,
-                            content=packet.content)
+            # self.logger.log(LogEvent.PACKET_SENT, username=recipient,
+            #                 content=bytes.decode())
 
-    def broadcast(self, packet: Packet, exclude=[]):
+    def broadcast(self, bytes, exclude=[]):
         for recipient, recipient_conn in self.connections.items():
             if recipient in exclude:
                 continue
 
-            send_packet(recipient_conn.socket, packet)
+            recipient_conn.socket.sendall(bytes)
 
-            self.logger.log(LogEvent.PACKET_SENT, username=recipient,
-                            content=packet.content)
+            # self.logger.log(LogEvent.PACKET_SENT, username=recipient,
+            #                 content=packet.content)
 
     def close_client(self, client_conn):
         client_username = client_conn.username
@@ -207,7 +224,8 @@ class Server:
             packet = AnnouncementPacket(
                 (f'{client_username} has left the chat.')
             )
-            self.broadcast(packet, exclude=[client_username])
+            bytes = packet.to_bytes()
+            self.broadcast(bytes, exclude=[client_username])
 
     def close_client_sockets(self):
         clients = list(self.connections.keys())
