@@ -4,23 +4,22 @@ import select
 import sys
 import socket
 
-# External libraries
-import tkinter as tk
-from tkinter import filedialog
-
 # Local Imports
 from packet import (
-    ENCODING,
-    HEADER_SIZE,
     PACKET_SIZE,
+    HEADER_SIZE,
+    ENCODING,
     PacketType,
     HeaderPacket,
     MetadataPacket,
     OutMessagePacket,
     FileListRequestPacket,
-    DownloadRequestPacket,
-)
-from utility import recv_to_buffer, extract_delimiter
+    DownloadRequestPacket)
+
+from utility import (
+    recv_full,
+    recv_generator,
+    extract_from_delimiter)
 
 
 class Client:
@@ -33,6 +32,10 @@ class Client:
         self.requested_disconnect = False
         self.save_directory = f'{username}/'
 
+    def send_packet(self, packet):
+        bytes = packet.to_bytes()
+        self.socket.sendall(bytes)
+
     def connect(self):
         # Setup socket
         print(f"Connecting to {self.server_hostname}:{self.server_port}")
@@ -41,7 +44,7 @@ class Client:
 
         # Send metadata to server before beginning main transmission
         packet = MetadataPacket(content=self.username)
-        self.socket.sendall(packet.to_bytes())
+        self.send_packet(packet)
 
         inputs = [self.socket, sys.stdin]
         while self.is_active:
@@ -61,83 +64,106 @@ class Client:
 
         self.socket.close()
 
-
     def handle_server_response(self):
-        header_data = self.socket.recv(HEADER_SIZE)
-        print(f'Header length: {len(header_data)}')
-        header: dict = HeaderPacket.decode(header_data)
+        encoded_header = self.socket.recv(HEADER_SIZE)
+        header: dict = HeaderPacket.decode(encoded_header)
 
-        print(header.get('size', 0))
-        content_data = recv_to_buffer(self.socket, 
-                                      header.get('size', 0))
-        print(f'Content data bytes: {len(content_data)}')
+        expected_size = header.get('size', 0)
 
         match header.get('type'):
             case PacketType.IN_MESSAGE:
-                sender = extract_delimiter(content_data[:PACKET_SIZE].decode(ENCODING))
-                content = content_data[PACKET_SIZE:].decode(ENCODING)
-                if sender:
-                    print(f'{sender}: {content}')
-                else:
-                    print(f'{content}')
+                sender = self.socket.recv(PACKET_SIZE).decode(ENCODING)
+                sender = extract_from_delimiter(sender)
+                expected_size -= PACKET_SIZE
+
+                content = recv_full(self.socket, expected_size)
+                self.process_in_message(content, sender)
             case PacketType.ANNOUNCEMENT:
-                content = content_data.decode(ENCODING)
-                print(f'{content}')
+                content = recv_full(self.socket, expected_size)
+                self.process_announcement(content)
             case PacketType.DUPLICATE_USERNAME:
-                content = content_data.decode(ENCODING)
-                print('This username is already taken')
-                print(f'Current users connected to the server: {content}')
-
-                newUsername = input('Enter a new username: ')
-
-                packet = MetadataPacket(username=newUsername)
-                self.socket.sendall(packet.to_bytes())
-
-                self.username = newUsername
+                content = recv_full(self.socket, expected_size)
+                self.process_duplicate_username(content)
+            case PacketType.FILE_LIST:
+                content = recv_full(self.socket, expected_size)
+                self.process_file_list(content)
             case PacketType.DOWNLOAD:
-                if not os.path.exists(self.save_directory):
-                    os.makedirs(self.save_directory)
+                filename = self.socket.recv(PACKET_SIZE).decode(ENCODING)
+                filename = extract_from_delimiter(filename)
+                expected_size -= PACKET_SIZE
 
-                target_filename = extract_delimiter(content_data[:PACKET_SIZE].decode(ENCODING))
-                file_data = content_data[PACKET_SIZE:]
+                datastream = recv_generator(self.socket, expected_size)
+                self.process_download(datastream, filename)
 
-                print(target_filename)
+    def process_in_message(self, data, sender):
+        content = data.decode(ENCODING)
+        if sender:
+            print(f'{sender}: {content}')
+        else:
+            print(f'{content}')
 
-                download_path = self.save_directory + target_filename
-                print(f"File will be saved to: {download_path}")
+    def process_announcement(self, data):
+        content = data.decode(ENCODING)
+        print(f'{content}')
 
-                with open(download_path, 'wb') as file:
-                    file.write(file_data)
+    def process_duplicate_username(self, data):
+        content = data.decode(ENCODING)
+        print('This username is already taken')
+        print(f'Current users connected to the server: {content}')
+
+        new_username = input('Enter a new username: ')
+
+        packet = MetadataPacket(new_username)
+        self.send_packet(packet)
+
+        self.username = new_username
+
+    def process_file_list(self, data):
+        print(f'Available files:\n{data.decode(ENCODING)}')
+
+    def process_download(self, datastream, filename):
+        if not os.path.exists(self.save_directory):
+            os.makedirs(self.save_directory)
+
+        download_path = self.save_directory + filename
+        print(f"File will be saved to: {download_path}")
+
+        with open(download_path, 'wb') as file:
+            for file_data in datastream:
+                file.write(file_data)
+
+        print(f"File saved to: {download_path}")
 
     def handle_user_command(self):
         # Read input from user
-        message = input().rstrip()
-        if not message:
+        user_input = input().rstrip()
+        if not user_input:
             return
 
-        match message.split(maxsplit=2):
+        match user_input.split(maxsplit=2):
             case ['/disconnect']:
                 self.requested_disconnect = True
-            case ['/msg', username, message]:
+            case ['/msg', username, user_input]:
                 # Direct message a specific client
                 if username == self.username:
-                    print('Select someone other than yourself to directly message')
+                    print(f'Select someone other than '
+                          f'yourself to directly message')
                     return
-                
-                packet = OutMessagePacket(content=message, recipient=username)
-                self.socket.sendall(packet.to_bytes())
+
+                packet = OutMessagePacket(user_input, username)
+                self.send_packet(packet)
             case ['/list_files']:
                 # Request a list of all available files
                 packet = FileListRequestPacket()
-                self.socket.sendall(packet.to_bytes())
+                self.send_packet(packet)
             case ['/download', filename]:
                 # Request to download a certain file
-                packet = DownloadRequestPacket(content=filename)
-                self.socket.sendall(packet.to_bytes())
+                packet = DownloadRequestPacket(filename)
+                self.send_packet(packet)
             case _:
                 # Send message to everyone
-                packet = OutMessagePacket(content=message, recipient=None)
-                self.socket.sendall(packet.to_bytes())
+                packet = OutMessagePacket(user_input, None)
+                self.send_packet(packet)
 
 
 if __name__ == "__main__":

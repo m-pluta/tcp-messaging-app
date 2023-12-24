@@ -24,76 +24,73 @@ class HeaderPacket():
     type: PacketType
     size: int
 
-    def to_bytes(self, encoding=ENCODING):
+    def to_bytes(self, ):
         bytes = b''
-        bytes += str(self.type.value).encode(encoding).ljust(4)
-        bytes += str(self.size).encode(encoding).ljust(16)
+        bytes += str(self.type.value).encode(ENCODING).ljust(4)
+        bytes += str(self.size).encode(ENCODING).ljust(16)
 
-        bytes = bytes.ljust(HEADER_SIZE)
+        return bytes.ljust(HEADER_SIZE)
 
-        return bytes
-    
-    def decode(bytes, encoding=ENCODING):
-        type = PacketType(int(bytes[:4].decode(encoding)))
+    def decode(bytes: bytes):
+        packet_type = PacketType(int(bytes[:4].decode(ENCODING)))
         bytes = bytes[4:]
-        
-        size = int(bytes[:16].decode(encoding))
+
+        packet_size = int(bytes[:16].decode(ENCODING))
         bytes = bytes[16:]
-        return {'type': type, 'size': size}
+
+        return {'type': packet_type, 'size': packet_size}
 
 
 @dataclass
 class Packet:
-    def to_bytes(self, encoding=ENCODING):
+    content: str
+
+    def to_bytes(self):
         packet_dict = asdict(self)
 
-        content_bytes = b''
+        bytes = b''
 
         for key, value in packet_dict.items():
             if key not in ('type', 'content'):
                 if value is not None:
-                    content_bytes += (f'<{value}>'.encode(encoding)
-                                    .ljust(PACKET_SIZE))
+                    bytes += (f'<{value}>'.ljust(PACKET_SIZE).encode(ENCODING))
                 else:
-                    content_bytes += (''.join([' '] * PACKET_SIZE)).encode(ENCODING)
+                    bytes += ((''.encode(ENCODING).ljust(PACKET_SIZE)))
+                              
 
-        if 'content' in packet_dict:
-            content_bytes += self.content.encode(encoding)
+        if self.content:
+            bytes += self.content.encode(ENCODING)
 
-        header_packet = HeaderPacket(self.type, len(content_bytes))
-        header_bytes = header_packet.to_bytes()
+        header_packet = HeaderPacket(self.type, len(bytes))
 
-        return header_bytes + content_bytes
-    
+        return header_packet.to_bytes() + bytes
+
 
 @dataclass
 class MetadataPacket(Packet):
-    content: str
     type: PacketType = PacketType.METADATA
 
 
 @dataclass
 class OutMessagePacket(Packet):
-    content: str
     recipient: str
     type: PacketType = PacketType.OUT_MESSAGE
 
 
 @dataclass
 class InMessagePacket(Packet):
-    content: str
     sender: str
     type: PacketType = PacketType.IN_MESSAGE
 
 
 @dataclass
 class AnnouncementPacket(Packet):
-    content: str
     type: PacketType = PacketType.ANNOUNCEMENT
 
 
 @dataclass
 class FileListRequestPacket(Packet):
+    content: str = None
     type: PacketType = PacketType.FILE_LIST_REQUEST
 
 
@@ -104,22 +101,25 @@ class FileListPacket(Packet):
 
 @dataclass
 class DownloadRequestPacket(Packet):
-    content: str
     type: PacketType = PacketType.DOWNLOAD_REQUEST
 
 
 @dataclass
-class DownloadPacket(Packet):
+class DownloadPacket():
     filename: str
     bytes: bytes
     type: PacketType = PacketType.DOWNLOAD
 
-    def to_bytes(self, encoding=ENCODING):
-        encoded_filename = f'<{self.filename}>'.encode(encoding)
-        
-        content_bytes = encoded_filename.ljust(PACKET_SIZE) + self.bytes
+    def to_bytes(self):
+        encoded_filename = f'<{self.filename}>'.encode(ENCODING)
 
-        header_packet = HeaderPacket(self.type, len(content_bytes))
-        header_bytes = header_packet.to_bytes()
+        bytes = encoded_filename.ljust(PACKET_SIZE) + self.bytes
 
-        return header_bytes + content_bytes
+        header_packet = HeaderPacket(self.type, len(bytes))
+
+        return header_packet.to_bytes() + bytes
+
+
+@dataclass
+class DuplicateUsernamePacket(Packet):
+    type: PacketType = PacketType.DUPLICATE_USERNAME
