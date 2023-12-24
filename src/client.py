@@ -11,6 +11,7 @@ from packet import (
     ENCODING,
     PacketType,
     HeaderPacket,
+    Packet,
     MetadataPacket,
     OutMessagePacket,
     FileListRequestPacket,
@@ -23,16 +24,16 @@ from utility import (
 
 
 class Client:
-    def __init__(self, username, hostname, port):
+    def __init__(self, username: str, hostname: str, port: int):
         self.username = username
         self.server_hostname = hostname
         self.server_port = port
 
-        self.is_active = True
+        self.is_active = False
         self.requested_disconnect = False
         self.save_directory = f'{username}/'
 
-    def send_packet(self, packet):
+    def send_packet(self, packet: Packet):
         bytes = packet.to_bytes()
         self.socket.sendall(bytes)
 
@@ -41,9 +42,10 @@ class Client:
         print(f"Connecting to {self.server_hostname}:{self.server_port}")
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.connect((self.server_hostname, self.server_port))
+        self.is_active = True
 
-        # Send metadata to server before beginning main transmission
-        packet = MetadataPacket(content=self.username)
+        # Send the client's username to server before main transmission
+        packet = MetadataPacket(self.username)
         self.send_packet(packet)
 
         inputs = [self.socket, sys.stdin]
@@ -67,7 +69,6 @@ class Client:
     def handle_server_response(self):
         encoded_header = self.socket.recv(HEADER_SIZE)
         header: dict = HeaderPacket.decode(encoded_header)
-
         expected_size = header.get('size', 0)
 
         match header.get('type'):
@@ -76,17 +77,21 @@ class Client:
                 sender = extract_from_delimiter(sender)
                 expected_size -= PACKET_SIZE
 
-                content = recv_full(self.socket, expected_size)
-                self.process_in_message(content, sender)
+                data = recv_full(self.socket, expected_size)
+                self.process_in_message(data, sender)
+
             case PacketType.ANNOUNCEMENT:
-                content = recv_full(self.socket, expected_size)
-                self.process_announcement(content)
+                data = recv_full(self.socket, expected_size)
+                self.process_announcement(data)
+
             case PacketType.DUPLICATE_USERNAME:
-                content = recv_full(self.socket, expected_size)
-                self.process_duplicate_username(content)
+                data = recv_full(self.socket, expected_size)
+                self.process_duplicate_username(data)
+
             case PacketType.FILE_LIST:
-                content = recv_full(self.socket, expected_size)
-                self.process_file_list(content)
+                data = recv_full(self.socket, expected_size)
+                self.process_file_list(data)
+
             case PacketType.DOWNLOAD:
                 filename = self.socket.recv(PACKET_SIZE).decode(ENCODING)
                 filename = extract_from_delimiter(filename)
@@ -95,18 +100,18 @@ class Client:
                 datastream = recv_generator(self.socket, expected_size)
                 self.process_download(datastream, filename)
 
-    def process_in_message(self, data, sender):
+    def process_in_message(self, data: bytes, sender: str):
         content = data.decode(ENCODING)
         if sender:
             print(f'{sender}: {content}')
         else:
             print(f'{content}')
 
-    def process_announcement(self, data):
+    def process_announcement(self, data: bytes):
         content = data.decode(ENCODING)
         print(f'{content}')
 
-    def process_duplicate_username(self, data):
+    def process_duplicate_username(self, data: bytes):
         content = data.decode(ENCODING)
         print('This username is already taken')
         print(f'Current users connected to the server: {content}')
@@ -118,10 +123,10 @@ class Client:
 
         self.username = new_username
 
-    def process_file_list(self, data):
+    def process_file_list(self, data: bytes):
         print(f'Available files:\n{data.decode(ENCODING)}')
 
-    def process_download(self, datastream, filename):
+    def process_download(self, datastream: bytes, filename: str):
         if not os.path.exists(self.save_directory):
             os.makedirs(self.save_directory)
 

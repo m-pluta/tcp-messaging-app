@@ -2,8 +2,9 @@
 from dataclasses import dataclass, asdict
 from enum import Enum
 
-PACKET_SIZE = 1000           # Bytes
-HEADER_SIZE = 100            # Bytes
+# Constants
+PACKET_SIZE = 1024  # Bytes
+HEADER_SIZE = 128   # Bytes
 ENCODING = 'utf-8'
 
 
@@ -24,19 +25,15 @@ class HeaderPacket():
     type: PacketType
     size: int
 
-    def to_bytes(self, ):
-        bytes = b''
-        bytes += str(self.type.value).encode(ENCODING).ljust(4)
-        bytes += str(self.size).encode(ENCODING).ljust(16)
+    def to_bytes(self):
+        bytes = str(self.type.value).ljust(4) + str(self.size).ljust(16)
+        encoded_bytes = bytes.encode(ENCODING)
 
-        return bytes.ljust(HEADER_SIZE)
+        return encoded_bytes.ljust(HEADER_SIZE)
 
     def decode(bytes: bytes):
         packet_type = PacketType(int(bytes[:4].decode(ENCODING)))
-        bytes = bytes[4:]
-
-        packet_size = int(bytes[:16].decode(ENCODING))
-        bytes = bytes[16:]
+        packet_size = int(bytes[4:].decode(ENCODING))
 
         return {'type': packet_type, 'size': packet_size}
 
@@ -46,17 +43,16 @@ class Packet:
     content: str
 
     def to_bytes(self):
+        # Iterate packet params, Add extra params to start of content bytes
         packet_dict = asdict(self)
-
         bytes = b''
 
         for key, value in packet_dict.items():
             if key not in ('type', 'content'):
                 if value is not None:
-                    bytes += (f'<{value}>'.ljust(PACKET_SIZE).encode(ENCODING))
+                    bytes += f'<{value}>'.encode(ENCODING).ljust(PACKET_SIZE)
                 else:
-                    bytes += ((''.encode(ENCODING).ljust(PACKET_SIZE)))
-                              
+                    bytes += (''.encode(ENCODING)).ljust(PACKET_SIZE)
 
         if self.content:
             bytes += self.content.encode(ENCODING)

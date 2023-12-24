@@ -6,8 +6,8 @@ import os
 
 # Local Imports
 from logger import (
-    Logger,
-    LogEvent)
+    LogEvent,
+    Logger)
 
 from packet import (
     PACKET_SIZE,
@@ -28,7 +28,7 @@ from utility import (
 
 
 class ClientConnection:
-    def __init__(self, socket: socket.socket, address: tuple):
+    def __init__(self, socket: socket.socket, address: tuple[str, int]):
         self.socket = socket
         self.ip_address = address[0]
         self.port = address[1]
@@ -40,12 +40,13 @@ class ClientConnection:
 
 
 class Server:
-    def __init__(self, port):
+    def __init__(self, port: int):
         # Init key variables and create logger
         self.port = port
+        self.is_running = False
         self.logger = Logger('./server.log')
         self.files_path = 'download'
-        self.connections = {}
+        self.connections: dict[str, ClientConnection] = {}
 
     def start(self):
         # Begin starting the server
@@ -69,93 +70,91 @@ class Server:
             try:
                 # New client tries to establish a connection
                 client_socket, addr = self.socket.accept()
-                client_conn = ClientConnection(client_socket, addr)
+                conn = ClientConnection(client_socket, addr)
                 self.logger.log(LogEvent.USER_CONNECT,
-                                ip_address=client_conn.ip_address,
-                                client_port=client_conn.port)
+                                ip_address=conn.ip_address,
+                                client_port=conn.port)
 
                 # Start a new thread to handle communication with new client
                 client_thread = threading.Thread(target=self.handle_client,
-                                                 args=(client_conn,))
+                                                 args=(conn,))
                 client_thread.start()
                 self.logger.log(LogEvent.USER_THREAD_STARTED,
-                                ip_address=client_conn.ip_address,
-                                client_port=client_conn.port)
+                                ip_address=conn.ip_address,
+                                client_port=conn.port)
             except KeyboardInterrupt:
                 break
 
         self.close()
 
-    def handle_client(self, client_conn: ClientConnection):
+    def handle_client(self, conn: ClientConnection):
         while True:
             # Check if client disconnected
-            header_data = client_conn.socket.recv(HEADER_SIZE)
+            header_data = conn.socket.recv(HEADER_SIZE)
             if not header_data:
                 break
 
             header: dict = HeaderPacket.decode(header_data)
             expected_size = header.get('size', 0)
 
-            content = recv_full(client_conn.socket, expected_size)
+            data = recv_full(conn.socket, expected_size)
 
             match header.get('type'):
                 case PacketType.METADATA:
-                    self.process_metadata_packet(client_conn, content)
+                    self.process_metadata_packet(conn, data)
                 case PacketType.OUT_MESSAGE:
-                    self.process_message_packet(client_conn, content)
+                    self.process_message_packet(conn, data)
                 case PacketType.FILE_LIST_REQUEST:
-                    self.process_file_list_request_packet(client_conn)
+                    self.process_file_list_request(conn)
                 case PacketType.DOWNLOAD_REQUEST:
-                    self.process_download_request_packet(client_conn, content)
+                    self.process_download_request(conn, data)
 
-        self.close_client(client_conn)
+        self.close_client(conn)
 
-    def process_metadata_packet(self, client_conn, data):
+    def process_metadata_packet(self, conn: ClientConnection, data: bytes):
         username = data.decode(ENCODING)
         if username in self.connections:
-            self.handle_duplicate_username(client_conn)
+            self.handle_duplicate_username(conn)
             return
 
-        self.connections[username] = client_conn
-        client_conn.username = username
+        self.connections[username] = conn
+        conn.username = username
 
         self.logger.log(LogEvent.PACKET_RECEIVED,
-                        username=client_conn.username,
-                        content=client_conn.username)
+                        username=conn.username,
+                        content=username)
 
         # Send announcement to all other clients
-        packet = AnnouncementPacket(
-            content=f'{client_conn.username} has joined the chat.')
+        packet = AnnouncementPacket(f'{conn.username} has joined the chat.')
 
-        self.broadcast(packet, exclude=[client_conn.username])
+        self.broadcast(packet, exclude=[conn.username])
 
-    def handle_duplicate_username(self, client_conn):
-        current_users = ", ".join(self.connections.keys())
-        packet = DuplicateUsernamePacket(content=current_users)
-        client_conn.send_packet(packet)
+    def handle_duplicate_username(self, conn: ClientConnection):
+        connected_users_list = ", ".join(self.connections.keys())
+        packet = DuplicateUsernamePacket(connected_users_list)
+        conn.send_packet(packet)
 
-    def process_message_packet(self, client_conn, data):
+    def process_message_packet(self, conn: ClientConnection, data: bytes):
         recipient = data[:PACKET_SIZE].decode(ENCODING)
+        message = data[PACKET_SIZE:].decode(ENCODING)
+
         recipient = extract_from_delimiter(recipient)
 
-        message_content = data[PACKET_SIZE:].decode(ENCODING)
-
         self.logger.log(LogEvent.PACKET_RECEIVED,
-                        username=client_conn.username,
-                        content=message_content)
+                        username=conn.username,
+                        content=message)
 
-        packet = InMessagePacket(content=message_content,
-                                 sender=client_conn.username)
+        packet = InMessagePacket(message, conn.username)
 
         if recipient:
             self.unicast(packet, recipient)
         else:
-            self.broadcast(packet, exclude=[client_conn.username])
+            self.broadcast(packet, exclude=[conn.username])
 
-    def process_file_list_request_packet(self, client_conn):
+    def process_file_list_request(self, conn: ClientConnection):
         self.logger.log(LogEvent.FILE_LIST_REQUEST,
-                        username=client_conn.username)
-        
+                        username=conn.username)
+
         try:
             with os.scandir(self.files_path) as entries:
                 files = [f'|--- {e.name}\n' for e in entries if e.is_file()]
@@ -164,14 +163,13 @@ class Server:
 
         if files:
             file_list = f'download\n{"".join(files)}'
-
-            packet = FileListPacket(content=file_list)
-            client_conn.send_packet(packet)
+            packet = FileListPacket(file_list)
+            conn.send_packet(packet)
         else:
             print(f'No files found in {self.files_path}')
             # TODO: handle no files on server
 
-    def process_download_request_packet(self, client_conn, data):
+    def process_download_request(self, conn: ClientConnection, data: bytes):
         filename = data.decode(ENCODING)
         filepath = f'{self.files_path}/{filename}'
 
@@ -183,13 +181,13 @@ class Server:
             return None
 
         packet = DownloadPacket(filename, file_bytes)
-        client_conn.send_packet(packet)
+        conn.send_packet(packet)
 
         self.logger.log(LogEvent.DOWNLOAD_REQUEST,
-                        username=client_conn.username,
+                        username=conn.username,
                         filename=filename)
 
-    def unicast(self, packet: Packet, recipient):
+    def unicast(self, packet: Packet, recipient: str):
         if recipient in self.connections:
 
             recipient_conn = self.connections[recipient]
@@ -198,7 +196,7 @@ class Server:
             self.logger.log(LogEvent.PACKET_SENT, username=recipient,
                             content=packet.content)
 
-    def broadcast(self, packet: Packet, exclude=[]):
+    def broadcast(self, packet: Packet, exclude: list[str] = []):
         for recipient, recipient_conn in self.connections.items():
             if recipient in exclude:
                 continue
@@ -208,12 +206,12 @@ class Server:
             self.logger.log(LogEvent.PACKET_SENT, username=recipient,
                             content=packet.content)
 
-    def close_client(self, client_conn):
-        client_username = client_conn.username
+    def close_client(self, conn: ClientConnection):
+        client_username = conn.username
 
         # TODO: Send closed socket a message saying it is being closed.
 
-        client_conn.socket.close()
+        conn.socket.close()
         del self.connections[client_username]
         self.logger.log(LogEvent.USER_DISCONNECT, username=client_username)
 
