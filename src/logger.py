@@ -42,7 +42,7 @@ class Logger:
         self.logger.addHandler(console_handler)
 
 
-    def log(self, event_type: LogEvent, kwargs: dict):
+    def log(self, event_type: LogEvent, **kwargs: dict):
         # Unpack kwargs into local variables
         port = kwargs.get('port', None)
         ip_address = kwargs.get('ip_address', None)
