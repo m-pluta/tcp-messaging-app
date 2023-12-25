@@ -22,7 +22,6 @@ class Logger:
     def __init__(self, log_filepath: str):
         # Setup log file
         self.log_filepath = log_filepath
-        self.clear_log_file()
 
         # Setup logger and formatting
         self.logger = logging.getLogger('my_logger')
@@ -42,11 +41,8 @@ class Logger:
         console_handler.setFormatter(formatter)
         self.logger.addHandler(console_handler)
 
-    def log(self, event_type: LogEvent, **kwargs):
-        log_content = self.get_log_content(event_type, kwargs)
-        self.logger.info(log_content)
 
-    def get_log_content(self, event_type: LogEvent, kwargs: dict):
+    def log(self, event_type: LogEvent, kwargs: dict):
         # Unpack kwargs into local variables
         port = kwargs.get('port', None)
         ip_address = kwargs.get('ip_address', None)
@@ -81,9 +77,4 @@ class Logger:
                 f'Client {username} requested to download {filename}'),
         }
 
-        return log_messages.get(event_type, None)
-
-    def clear_log_file(self):
-        # Open and close file in write mode to clear
-        with open(self.log_filepath, 'w'):
-            pass
+        self.logger.info(log_messages.get(event_type, None)) 

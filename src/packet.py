@@ -15,9 +15,9 @@ class PacketType(Enum):
     ANNOUNCEMENT = 4
     FILE_LIST_REQUEST = 5
     FILE_LIST = 6
-    DOWNLOAD_REQUEST = 7
-    DOWNLOAD = 8
-    DUPLICATE_USERNAME = 9
+    DUPLICATE_USERNAME = 7
+    DOWNLOAD_REQUEST = 8
+    DOWNLOAD = 9
 
 
 @dataclass
@@ -96,6 +96,11 @@ class FileListPacket(Packet):
 
 
 @dataclass
+class DuplicateUsernamePacket(Packet):
+    type: PacketType = PacketType.DUPLICATE_USERNAME
+
+
+@dataclass
 class DownloadRequestPacket(Packet):
     type: PacketType = PacketType.DOWNLOAD_REQUEST
 
@@ -114,8 +119,3 @@ class DownloadPacket():
         header_packet = HeaderPacket(self.type, len(bytes))
 
         return header_packet.to_bytes() + bytes
-
-
-@dataclass
-class DuplicateUsernamePacket(Packet):
-    type: PacketType = PacketType.DUPLICATE_USERNAME
