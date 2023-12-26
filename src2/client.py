@@ -62,10 +62,14 @@ class Client:
             try:
                 user_input = str(input())
             except KeyboardInterrupt as e:
-                print('Keyboard Interrupt')
-                sys.exit(0)
+                self.close()
                 
             self.socket.sendall(user_input.encode())
+
+    def close(self):
+        print('Disconnecting from server')
+        self.socket.close()
+        sys.exit()
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
