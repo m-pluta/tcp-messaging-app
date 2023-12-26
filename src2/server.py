@@ -5,13 +5,14 @@ import threading
 import select
 
 # Local Imports
-from log_event import LogEvent
-from logger import Logger
-
+from packet_type import PacketType
 from packet import (
+    HEADER_SIZE,
     encode_header,
     decode_header
 )
+from log_event import LogEvent
+from logger import Logger
 
 
 class ClientConnection:

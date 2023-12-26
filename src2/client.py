@@ -6,8 +6,8 @@ import time
 
 # Local Imports
 from packet_type import PacketType
-
 from packet import (
+    HEADER_SIZE,
     encode_header,
     decode_header
 )
