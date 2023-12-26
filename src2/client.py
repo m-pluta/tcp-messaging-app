@@ -7,6 +7,12 @@ import time
 # Local Imports
 from packet_type import PacketType
 
+from packet import (
+    encode_header,
+    decode_header
+)
+
+
 class Client:
     def __init__(self, username: str, hostname: str, port: int):
         self.username = username

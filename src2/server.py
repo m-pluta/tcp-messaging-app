@@ -8,6 +8,11 @@ import select
 from log_event import LogEvent
 from logger import Logger
 
+from packet import (
+    encode_header,
+    decode_header
+)
+
 
 class ClientConnection:
     def __init__(self, socket: socket.socket, address: tuple[str, int]):
