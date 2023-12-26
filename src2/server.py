@@ -77,13 +77,26 @@ class Server:
                     conn = ClientConnection(client_socket, addr)
                     self.logger.log(LogEvent.USER_CONNECT, ip_address=conn.ip_address, client_port=conn.port)
                     self.connections[addr[1]] = conn
+                    print(self.connections)
                 else:
-                    data = sock.recv(1024)
-                    message = data.decode()
-                    print(message)
-                    pass
+                    self.process_socket(sock)
 
-    def handle_client(self):
+    def process_socket(self, socket):
+        data = socket.recv(HEADER_SIZE)
+        if not data:
+            return
+
+
+        type, size, params = decode_header(data)
+
+        print(type)
+        print(size)
+        print(params)
+
+        message = socket.recv(size).decode()
+
+        print(message)
+
         pass
 
     def process_username_packet(self):

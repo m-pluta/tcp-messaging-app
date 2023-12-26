@@ -38,9 +38,7 @@ class Client:
         self.handle_cli_input()
 
     def handle_server_response(self):
-        while True:
-            print('From server')
-            time.sleep(10)
+        pass
 
     def process_in_message(self):
         pass
@@ -60,11 +58,39 @@ class Client:
     def handle_cli_input(self):
         while True:
             try:
-                user_input = str(input())
+                user_input = str(input()).rstrip()
             except KeyboardInterrupt as e:
                 self.close()
-                
-            self.socket.sendall(user_input.encode())
+
+            match user_input.split(maxsplit=2):
+                case ['/disconnect']:
+                    self.close()
+                case ['/msg', username, user_input]:
+                    # Direct message a specific client
+                    if username == self.username:
+                        print(f'Select someone other than '
+                            f'yourself to directly message')
+                        return
+                    
+                    message = user_input.encode()
+
+                    header = encode_header(PacketType.OUT_MESSAGE, len(message), recipient=username)
+
+                    self.socket.sendall(header + message)
+                case ['/list_files']:
+                    # Request a list of all available files
+                    header = encode_header(PacketType.FILE_LIST_REQUEST, 0)
+                    self.socket.sendall(header)
+                case ['/download', filename]:
+                    # Request to download a certain file
+                    header = encode_header(PacketType.DOWNLOAD_REQUEST, 0, filename=filename)
+                    self.socket.sendall(header)
+                case _:
+                    # Send message to everyone
+                    message = user_input.encode()
+
+                    header = encode_header(PacketType.OUT_MESSAGE, len(message))
+                    self.socket.sendall(header + message)
 
     def close(self):
         print('Disconnecting from server')
