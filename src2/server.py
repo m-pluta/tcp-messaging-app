@@ -82,34 +82,50 @@ class Server:
                     self.process_socket(sock)
 
     def process_socket(self, socket):
+        conn = self.get_conn_by_socket(socket)
+
         data = socket.recv(HEADER_SIZE)
         if not data:
             return
 
+        expected_type, expected_size, params = decode_header(data)
+        print(expected_type, expected_size, params)
 
-        type, size, params = decode_header(data)
-
-        print(type)
-        print(size)
-        print(params)
-
-        message = socket.recv(size).decode()
-
+        message = socket.recv(expected_size)
         print(message)
 
+        match expected_type:
+            case PacketType.METADATA:
+                username = params.get('username')
+                self.process_metadata_packet(conn, username)
+
+            case PacketType.OUT_MESSAGE:
+                recipient = params.get('recipient')
+                self.process_message_packet(conn, recipient, message)
+
+            case PacketType.FILE_LIST_REQUEST:
+                self.process_file_list_request(conn)
+
+            case PacketType.DOWNLOAD_REQUEST:
+                filename = params.get('filename')
+                self.process_download_request(conn, filename)
+
+    def process_metadata_packet(self, conn: ClientConnection, username: str):
         pass
 
-    def process_username_packet(self):
+    def process_message_packet(self, conn: ClientConnection, recipient: [None|str], message: str):
         pass
 
-    def process_message_packet(self):
+    def process_file_list_request(self, conn: ClientConnection):
         pass
 
-    def process_file_list_request(self):
+    def process_download_request(self, conn: ClientConnection, filename: str):
         pass
 
-    def process_download_request(self):
-        pass
+    def get_conn_by_socket(self, socket):
+        for conn in self.connections.values():
+            if conn.socket is socket:
+                return conn
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
