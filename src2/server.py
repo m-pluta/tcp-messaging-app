@@ -26,7 +26,6 @@ class Server:
     def __init__(self, port: int):
         # Init key variables and create logger
         self.port = port
-        self.is_running = False
         self.logger = Logger('./server.log')
         self.files_path = 'download'
         self.connections: list[ClientConnection] = []
@@ -108,7 +107,7 @@ class Server:
                 self.process_download_request(conn, filename)
 
     def process_metadata_packet(self, conn: ClientConnection, username: str):
-        if username in [conn.username for conn in self.connections]:
+        if username in self.get_connected_users():
             self.handle_duplicate_username(conn)
             return
         conn.username = username
@@ -119,8 +118,12 @@ class Server:
         header = encode_header(PacketType.ANNOUNCEMENT, len(message))
         self.broadcast(header + message, exclude=[username])
 
-    def handle_duplicate_username(self, conn):
-        pass
+    def handle_duplicate_username(self, conn: ClientConnection):
+        connected_users_list = ", ".join(self.get_connected_users())
+        
+        message = connected_users_list.encode()
+        header = encode_header(PacketType.DUPLICATE_USERNAME, len(message))
+        conn.socket.sendall(header + message)
 
     def process_message_packet(self, conn: ClientConnection, recipient: [None|str], message: str):
         pass
@@ -162,11 +165,14 @@ class Server:
                 self.logger.log(LogEvent.PACKET_SENT, username=recipient)
                 return
 
-    def get_conn_by_socket(self, socket):
+    def get_conn_by_socket(self, socket: socket.socket):
         for conn in self.connections:
             if conn.socket == socket:
                 return conn
         return None
+    
+    def get_connected_users(self):
+        return [conn.username for conn in self.connections if conn.username is not None]
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

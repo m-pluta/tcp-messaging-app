@@ -3,7 +3,6 @@ import os
 import sys
 import socket
 import threading
-import time
 
 # Local Imports
 from packet_type import PacketType
@@ -51,7 +50,6 @@ class Client:
             expected_type, expected_size, params = decode_header(data)
 
             if expected_type == PacketType.DOWNLOAD:
-                print('test')
                 datastream = recv_generator(self.socket, expected_size)
 
                 if not os.path.exists(self.save_directory):
@@ -67,11 +65,13 @@ class Client:
                 print(f"File saved to: {download_path}")
                 continue
 
-            message = self.socket.recv(expected_size)
+            message = self.socket.recv(expected_size).decode()
 
             match expected_type:
                 case PacketType.ANNOUNCEMENT:
-                    self.process_announcement(message.decode())
+                    self.process_announcement(message)
+                case PacketType.DUPLICATE_USERNAME:
+                    self.process_duplicate_username(message)
 
     def process_in_message(self):
         pass
@@ -80,8 +80,16 @@ class Client:
         print(f'{message}')
         pass
 
-    def process_duplicate_username(self):
-        pass
+    def process_duplicate_username(self, user_list):
+        print('This username is already taken')
+        print(f'Current users connected to the server: {user_list}')
+
+        new_username = input('Enter a new username: ')
+
+        header = encode_header(PacketType.METADATA, 0, username=new_username)
+        self.socket.sendall(header)
+
+        self.username = new_username
 
     def process_file_list(self):
         pass
