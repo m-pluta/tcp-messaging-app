@@ -72,6 +72,8 @@ class Client:
                     self.process_announcement(message)
                 case PacketType.DUPLICATE_USERNAME:
                     self.process_duplicate_username(message)
+                case PacketType.FILE_LIST:
+                    print(f'Available files:\n{message}')
 
     def process_in_message(self):
         pass
@@ -90,9 +92,6 @@ class Client:
         self.socket.sendall(header)
 
         self.username = new_username
-
-    def process_file_list(self):
-        pass
 
     def process_download(self):
         pass

@@ -1,4 +1,5 @@
 # Standard Library Imports
+import os
 import sys
 import socket
 import threading
@@ -129,6 +130,23 @@ class Server:
         pass
 
     def process_file_list_request(self, conn: ClientConnection):
+        self.logger.log(LogEvent.FILE_LIST_REQUEST, username=conn.username)
+
+        try:
+            with os.scandir(self.files_path) as entries:
+                files = [f'|-- {e.name}\n' for e in entries if e.is_file()]
+        except FileNotFoundError:
+            files = []
+
+        if files:
+            file_list = f'download\n{"".join(files)}'
+        
+            message = file_list.encode()
+            header = encode_header(PacketType.FILE_LIST, len(message))
+            conn.socket.sendall(header + message)
+        else:
+            print(f'No files found in {self.files_path}')
+            # TODO: handle no files on server
         pass
 
     def process_download_request(self, conn: ClientConnection, filename: str):
