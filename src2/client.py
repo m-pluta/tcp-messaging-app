@@ -48,7 +48,7 @@ class Client:
             try:
                 data = self.socket.recv(HEADER_SIZE)
             except ConnectionResetError:
-                print('Disconnected from the server\nPress anything to exit')
+                print('Disconnected from the server\nPress enter to exit')
                 self.close()
                 break
 
