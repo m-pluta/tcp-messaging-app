@@ -16,6 +16,7 @@ class Client:
 
         self.is_active = False
         self.save_directory = f'{username}/'
+        self.new_username_requested = False
 
     def start(self):
         # Setup socket
@@ -29,11 +30,14 @@ class Client:
         server_thread.daemon = True
         server_thread.start()
 
-        header = encode_header(PacketType.METADATA, 0, username=self.username)
-        self.socket.sendall(header)
-
+        self.send_username()
         self.handle_cli_input()
 
+    def send_username(self):
+        header = encode_header(PacketType.METADATA, 0, username=self.username)
+        self.socket.sendall(header)
+        self.new_username_requested = False
+    
     def handle_server_response(self):
         while self.is_active:
             data = self.socket.recv(HEADER_SIZE)
@@ -71,15 +75,10 @@ class Client:
         print(f'{message}')
 
     def process_duplicate_username(self, user_list):
-        print('This username is already taken')
-        print(f'Current users connected to the server: {user_list}')
-
-        new_username = input('Enter a new username: ')
-
-        header = encode_header(PacketType.METADATA, 0, username=new_username)
-        self.socket.sendall(header)
-
-        self.username = new_username
+        print(f'This username is already taken\n'
+              f'Current users connected to the server: {user_list}\n'
+              f'Enter a new username: ', end='')
+        self.new_username_requested = True
 
     def process_download(self, datastream, filename):
         if not os.path.exists(self.save_directory):
@@ -100,6 +99,11 @@ class Client:
                 user_input = str(input()).rstrip()
             except KeyboardInterrupt as e:
                 self.close()
+
+            if self.new_username_requested:
+                self.username = user_input
+                self.send_username()
+                continue
 
             match user_input.split(maxsplit=2):
                 case ['/disconnect']:
