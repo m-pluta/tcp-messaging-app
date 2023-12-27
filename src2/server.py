@@ -43,7 +43,7 @@ class Server:
         while True:
             try:
                 input()
-            except:
+            except KeyboardInterrupt:
                 print('Detected Keyboard Interrupt')
                 sys.exit(0) 
 
@@ -127,6 +127,17 @@ class Server:
         conn.socket.sendall(header + message)
 
     def process_message_packet(self, conn: ClientConnection, recipient: [None|str], message: str):
+        self.logger.log(LogEvent.PACKET_RECEIVED,
+                        username=conn.username,
+                        content=message)
+
+        message = message.encode()
+        header = encode_header(PacketType.IN_MESSAGE, len(message), sender=conn.username)
+
+        if recipient:
+            self.unicast(header + message, recipient)
+        else:
+            self.broadcast(header + message, exclude=[conn.username])
         pass
 
     def process_file_list_request(self, conn: ClientConnection):

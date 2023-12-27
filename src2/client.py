@@ -51,18 +51,8 @@ class Client:
 
             if expected_type == PacketType.DOWNLOAD:
                 datastream = recv_generator(self.socket, expected_size)
-
-                if not os.path.exists(self.save_directory):
-                    os.makedirs(self.save_directory)
-
-                download_path = self.save_directory + params.get('filename')
-                print(f"File will be saved to: {download_path}")
-
-                with open(download_path, 'wb') as file:
-                    for file_data in datastream:
-                        file.write(file_data)
-
-                print(f"File saved to: {download_path}")
+                filename = params.get('filename')
+                self.process_download(datastream, filename)
                 continue
 
             message = self.socket.recv(expected_size).decode()
@@ -74,9 +64,15 @@ class Client:
                     self.process_duplicate_username(message)
                 case PacketType.FILE_LIST:
                     print(f'Available files:\n{message}')
+                case PacketType.IN_MESSAGE:
+                    sender = params.get('sender')
+                    self.process_in_message(message, sender)
 
-    def process_in_message(self):
-        pass
+    def process_in_message(self, message, sender):
+        if sender:
+            print(f'{sender}: {message}')
+        else:
+            print(f'{message}')
 
     def process_announcement(self, message):
         print(f'{message}')
@@ -93,8 +89,18 @@ class Client:
 
         self.username = new_username
 
-    def process_download(self):
-        pass
+    def process_download(self, datastream, filename):
+        if not os.path.exists(self.save_directory):
+            os.makedirs(self.save_directory)
+
+        download_path = self.save_directory + filename
+        print(f"File will be saved to: {download_path}")
+
+        with open(download_path, 'wb') as file:
+            for file_data in datastream:
+                file.write(file_data)
+
+        print(f"File saved to: {download_path}")
 
     def handle_cli_input(self):
         while True:
