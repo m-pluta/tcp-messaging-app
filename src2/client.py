@@ -15,7 +15,6 @@ class Client:
         self.server_port = port
 
         self.is_connected = False
-        self.save_directory = f'{username}/'
         self.new_username_requested = False
 
     def start(self):
@@ -93,10 +92,11 @@ class Client:
         self.new_username_requested = True
 
     def process_download(self, datastream, filename):
-        if not os.path.exists(self.save_directory):
-            os.makedirs(self.save_directory)
+        save_directory = f'{self.username}/'
+        if not os.path.exists(save_directory):
+            os.makedirs(save_directory)
 
-        download_path = self.save_directory + filename
+        download_path = save_directory + filename
         print(f"File will be saved to: {download_path}")
 
         with open(download_path, 'wb') as file:
