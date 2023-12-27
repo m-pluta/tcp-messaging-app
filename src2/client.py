@@ -34,7 +34,7 @@ class Client:
         self.handle_cli_input()
 
     def send_username(self):
-        header = encode_header(PacketType.METADATA, 0, username=self.username)
+        header = encode_header(PacketType.USERNAME, 0, username=self.username)
         self.socket.sendall(header)
         self.new_username_requested = False
     
@@ -133,6 +133,7 @@ class Client:
 
     def close(self):
         print('Disconnecting from server')
+        self.socket.shutdown(socket.SHUT_RDWR)
         self.socket.close()
         sys.exit()
 

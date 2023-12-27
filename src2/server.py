@@ -17,10 +17,9 @@ from logger import Logger
 
 
 class ClientConnection:
-    def __init__(self, socket: socket.socket, address: tuple[str, int]):
-        self.socket = socket
-        self.address = address
+    def __init__(self, socket: socket.socket):
         self.username = None
+        self.socket = socket
 
 
 class Server:
@@ -72,7 +71,7 @@ class Server:
                     client_socket, addr = self.socket.accept()
                     self.logger.log(LogEvent.USER_CONNECT, ip_address=addr[0], client_port=addr[1])
 
-                    self.connections.append(ClientConnection(client_socket, addr))
+                    self.connections.append(ClientConnection(client_socket))
                 else:
                     self.process_socket(sock)
 
@@ -86,7 +85,7 @@ class Server:
         expected_type, expected_size, params = decode_header(data)
         message = socket.recv(expected_size).decode()
 
-        if expected_type == PacketType.METADATA:
+        if expected_type == PacketType.USERNAME:
             username = params.get('username')
             self.process_metadata_packet(conn, username)
 

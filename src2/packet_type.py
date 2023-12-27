@@ -3,7 +3,7 @@ from enum import Enum
 
 
 class PacketType(Enum):
-    METADATA = 1
+    USERNAME = 1
     OUT_MESSAGE = 2
     IN_MESSAGE = 3
     ANNOUNCEMENT = 4
