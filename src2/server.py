@@ -26,9 +26,8 @@ class Server:
     def __init__(self, port: int):
         # Init key variables and logger
         self.port = port
-        self.files_path = 'test-download'
-        if not os.path.exists(self.files_path):
-            os.makedirs(self.files_path)
+        self.files_path = 'download'
+        os.makedirs(self.files_path, exist_ok=True)
         self.connections: list[ClientConnection] = []
 
         logging.basicConfig(level=logging.INFO, 
@@ -50,7 +49,7 @@ class Server:
                 input()
             except KeyboardInterrupt:
                 logging.critical('Detected Keyboard Interrupt')
-                sys.exit(0)
+                self.close()
 
     def run_server(self):
         # Begin starting the server
@@ -211,6 +210,12 @@ class Server:
 
         self.connections.remove(conn)
         logging.info(f'Removed {conn.username} from current connections')
+
+    def close(self):
+        logging.info(f'Server closing')
+        for conn in self.connections:
+            self.close_conn(conn)
+        sys.exit(0)
 
 
 if __name__ == "__main__":

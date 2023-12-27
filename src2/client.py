@@ -18,7 +18,6 @@ class Client:
         self.new_username_requested = False
 
     def start(self):
-        # Setup socket
         print(f"Connecting to {self.server_hostname}:{self.server_port}")
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -42,7 +41,7 @@ class Client:
         header = encode_header(PacketType.USERNAME, 0, username=self.username)
         self.socket.sendall(header)
         self.new_username_requested = False
-    
+
     def handle_server_response(self):
         while self.is_connected:
             try:
@@ -93,10 +92,9 @@ class Client:
 
     def process_download(self, datastream, filename):
         save_directory = f'{self.username}/'
-        if not os.path.exists(save_directory):
-            os.makedirs(save_directory)
+        os.makedirs(save_directory, exist_ok=True)
 
-        download_path = save_directory + filename
+        download_path = os.path.join(save_directory, filename)
         print(f"File will be saved to: {download_path}")
 
         with open(download_path, 'wb') as file:
@@ -108,16 +106,18 @@ class Client:
     def handle_cli_input(self):
         while True:
             try:
-                user_input = str(input()).rstrip()
-            except KeyboardInterrupt as e:
+                user_input = input().strip()
+            except KeyboardInterrupt:
                 print('Detected Keyboard Interrupt')
                 self.close()
                 break
 
             if not self.is_connected:
                 break
+
             if not user_input:
                 continue
+
             if self.new_username_requested:
                 self.username = user_input
                 self.send_username()
