@@ -1,4 +1,5 @@
 # Standard Library Imports
+import os
 import sys
 import socket
 import threading
@@ -9,7 +10,8 @@ from packet_type import PacketType
 from packet import (
     HEADER_SIZE,
     encode_header,
-    decode_header
+    decode_header,
+    recv_generator
 )
 
 
@@ -35,15 +37,47 @@ class Client:
         server_thread.daemon = True
         server_thread.start()
 
+        header = encode_header(PacketType.METADATA, 0, username=username)
+        self.socket.sendall(header)
+
         self.handle_cli_input()
 
     def handle_server_response(self):
-        pass
+        while self.is_active:
+            data = self.socket.recv(HEADER_SIZE)
+            if not data:
+                continue
+
+            expected_type, expected_size, params = decode_header(data)
+
+            if expected_type == PacketType.DOWNLOAD:
+                print('test')
+                datastream = recv_generator(self.socket, expected_size)
+
+                if not os.path.exists(self.save_directory):
+                    os.makedirs(self.save_directory)
+
+                download_path = self.save_directory + params.get('filename')
+                print(f"File will be saved to: {download_path}")
+
+                with open(download_path, 'wb') as file:
+                    for file_data in datastream:
+                        file.write(file_data)
+
+                print(f"File saved to: {download_path}")
+                continue
+
+            message = self.socket.recv(expected_size)
+
+            match expected_type:
+                case PacketType.ANNOUNCEMENT:
+                    self.process_announcement(message.decode())
 
     def process_in_message(self):
         pass
 
-    def process_announcement(self):
+    def process_announcement(self, message):
+        print(f'{message}')
         pass
 
     def process_duplicate_username(self):
@@ -68,8 +102,7 @@ class Client:
                 case ['/msg', username, user_input]:
                     # Direct message a specific client
                     if username == self.username:
-                        print(f'Select someone other than '
-                            f'yourself to directly message')
+                        print(f'Select someone other than yourself to directly message')
                         return
                     
                     message = user_input.encode()
