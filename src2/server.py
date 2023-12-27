@@ -53,10 +53,8 @@ class Server:
 
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-
         self.socket.bind(("", self.port))
         self.socket.listen(1)
-        self.is_running = True
 
         self.logger.log(LogEvent.SERVER_STARTED, port=self.port)
 
@@ -65,9 +63,8 @@ class Server:
     def listen(self):
         self.logger.log(LogEvent.SERVER_LISTENING, port=self.port)
 
-        while self.is_running:
+        while True:
             readables = [self.socket] + [c.socket for c in self.connections]
-
             readable, _, _ = select.select(readables, [], [])
 
             for sock in readable:
@@ -75,8 +72,7 @@ class Server:
                     client_socket, addr = self.socket.accept()
                     self.logger.log(LogEvent.USER_CONNECT, ip_address=addr[0], client_port=addr[1])
 
-                    conn = ClientConnection(client_socket, addr)
-                    self.connections.append(conn)
+                    self.connections.append(ClientConnection(client_socket, addr))
                 else:
                     self.process_socket(sock)
 
@@ -86,26 +82,24 @@ class Server:
         data = socket.recv(HEADER_SIZE)
         if not data:
             return
-
+        
         expected_type, expected_size, params = decode_header(data)
-
         message = socket.recv(expected_size).decode()
 
-        match expected_type:
-            case PacketType.METADATA:
-                username = params.get('username')
-                self.process_metadata_packet(conn, username)
+        if expected_type == PacketType.METADATA:
+            username = params.get('username')
+            self.process_metadata_packet(conn, username)
 
-            case PacketType.OUT_MESSAGE:
-                recipient = params.get('recipient')
-                self.process_message_packet(conn, recipient, message)
+        elif expected_type == PacketType.OUT_MESSAGE:
+            recipient = params.get('recipient')
+            self.process_message_packet(conn, recipient, message)
 
-            case PacketType.FILE_LIST_REQUEST:
-                self.process_file_list_request(conn)
+        elif expected_type == PacketType.FILE_LIST_REQUEST:
+            self.process_file_list_request(conn)
 
-            case PacketType.DOWNLOAD_REQUEST:
-                filename = params.get('filename')
-                self.process_download_request(conn, filename)
+        elif expected_type == PacketType.DOWNLOAD_REQUEST:
+            filename = params.get('filename')
+            self.process_download_request(conn, filename)
 
     def process_metadata_packet(self, conn: ClientConnection, username: str):
         if username in self.get_connected_users():
@@ -127,9 +121,7 @@ class Server:
         conn.socket.sendall(header + message)
 
     def process_message_packet(self, conn: ClientConnection, recipient: [None|str], message: str):
-        self.logger.log(LogEvent.PACKET_RECEIVED,
-                        username=conn.username,
-                        content=message)
+        self.logger.log(LogEvent.PACKET_RECEIVED, username=conn.username, content=message)
 
         message = message.encode()
         header = encode_header(PacketType.IN_MESSAGE, len(message), sender=conn.username)
@@ -138,7 +130,6 @@ class Server:
             self.unicast(header + message, recipient)
         else:
             self.broadcast(header + message, exclude=[conn.username])
-        pass
 
     def process_file_list_request(self, conn: ClientConnection):
         self.logger.log(LogEvent.FILE_LIST_REQUEST, username=conn.username)
@@ -150,9 +141,7 @@ class Server:
             files = []
 
         if files:
-            file_list = f'download\n{"".join(files)}'
-        
-            message = file_list.encode()
+            message = f'download\n{"".join(files)}'.encode()
             header = encode_header(PacketType.FILE_LIST, len(message))
             conn.socket.sendall(header + message)
         else:
@@ -162,37 +151,29 @@ class Server:
 
     def process_download_request(self, conn: ClientConnection, filename: str):
         filepath = f'{self.files_path}/{filename}'
-
         try:
-            with open(filepath, 'rb') as file:
-                file_bytes = file.read()
+            with open(filepath, 'rb') as f:
+                file = f.read()
         except FileNotFoundError:
             print(f"File not found: {filepath}")
             return
         
-        header = encode_header(PacketType.DOWNLOAD, len(file_bytes), filename=filename)
-
-        self.unicast(header + file_bytes, conn.username)
-
+        header = encode_header(PacketType.DOWNLOAD, len(file), filename=filename)
+        conn.socket.sendall(header + file)
         self.logger.log(LogEvent.DOWNLOAD_REQUEST, username=conn.username, filename=filename)
 
     def broadcast(self, data: bytes, exclude: list[str]=[]):
         for conn in self.connections:
             if conn.username in exclude:
                 continue
-
             conn.socket.sendall(data)
-
-            self.logger.log(LogEvent.PACKET_SENT, username=conn.username)
+            self.logger.log(LogEvent.PACKET_SENT, username=conn.username, content=data[HEADER_SIZE:].decode())
 
     def unicast(self, data: bytes, recipient: str):
         for conn in self.connections:
             if conn.username == recipient:
                 conn.socket.sendall(data)
-                print(data)
-
-                self.logger.log(LogEvent.PACKET_SENT, username=recipient)
-                return
+                self.logger.log(LogEvent.PACKET_SENT, username=recipient, content=data[HEADER_SIZE:].decode())
 
     def get_conn_by_socket(self, socket: socket.socket):
         for conn in self.connections:
@@ -201,7 +182,7 @@ class Server:
         return None
     
     def get_connected_users(self):
-        return [conn.username for conn in self.connections if conn.username is not None]
+        return [conn.username for conn in self.connections if conn.username]
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:

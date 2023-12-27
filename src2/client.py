@@ -1,4 +1,3 @@
-# Standard Library Imports
 import os
 import sys
 import socket
@@ -6,12 +5,7 @@ import threading
 
 # Local Imports
 from packet_type import PacketType
-from packet import (
-    HEADER_SIZE,
-    encode_header,
-    decode_header,
-    recv_generator
-)
+from packet import HEADER_SIZE, encode_header, decode_header, recv_generator
 
 
 class Client:
@@ -21,7 +15,6 @@ class Client:
         self.server_port = port
 
         self.is_active = False
-        self.requested_disconnect = False
         self.save_directory = f'{username}/'
 
     def start(self):
@@ -36,7 +29,7 @@ class Client:
         server_thread.daemon = True
         server_thread.start()
 
-        header = encode_header(PacketType.METADATA, 0, username=username)
+        header = encode_header(PacketType.METADATA, 0, username=self.username)
         self.socket.sendall(header)
 
         self.handle_cli_input()
@@ -76,7 +69,6 @@ class Client:
 
     def process_announcement(self, message):
         print(f'{message}')
-        pass
 
     def process_duplicate_username(self, user_list):
         print('This username is already taken')
@@ -117,11 +109,9 @@ class Client:
                     if username == self.username:
                         print(f'Select someone other than yourself to directly message')
                         return
-                    
+                
                     message = user_input.encode()
-
                     header = encode_header(PacketType.OUT_MESSAGE, len(message), recipient=username)
-
                     self.socket.sendall(header + message)
                 case ['/list_files']:
                     # Request a list of all available files
@@ -134,7 +124,6 @@ class Client:
                 case _:
                     # Send message to everyone
                     message = user_input.encode()
-
                     header = encode_header(PacketType.OUT_MESSAGE, len(message))
                     self.socket.sendall(header + message)
 
@@ -142,6 +131,7 @@ class Client:
         print('Disconnecting from server')
         self.socket.close()
         sys.exit()
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 4:
