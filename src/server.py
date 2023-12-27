@@ -77,6 +77,7 @@ class Server:
             for sock in readable:
                 if sock is self.socket:
                     client_socket, addr = self.socket.accept()
+                    print(f'New client connection {addr[0]}:{addr[1]}')
                     logging.info(f'New client connection {addr[0]}:{addr[1]}')
 
                     new_conn = ClientConnection(client_socket, addr)
