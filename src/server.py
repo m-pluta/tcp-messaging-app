@@ -16,7 +16,7 @@ import logging
 
 
 class ClientConnection:
-    def __init__(self, socket: socket.socket, addr: tuple[str,int]):
+    def __init__(self, socket: socket.socket, addr: tuple[str, int]):
         self.username = None
         self.socket = socket
         self.addr = addr
@@ -30,10 +30,11 @@ class Server:
         os.makedirs(self.files_path, exist_ok=True)
         self.connections: list[ClientConnection] = []
 
-        logging.basicConfig(level=logging.INFO, 
+        format = '%(asctime)s | %(levelname)-8s | %(message)s'
+        logging.basicConfig(level=logging.INFO,
                             filename='server.log',
-                            filemode='a', 
-                            format='%(asctime)s | %(levelname)-8s | %(message)s')
+                            filemode='a',
+                            format=format)
 
     def start(self):
         # Start a new thread to handle communication with the server
@@ -78,7 +79,8 @@ class Server:
                     client_socket, addr = self.socket.accept()
                     logging.info(f'New client connection {addr[0]}:{addr[1]}')
 
-                    self.connections.append(ClientConnection(client_socket, addr))
+                    new_conn = ClientConnection(client_socket, addr)
+                    self.connections.append(new_conn)
                 else:
                     self.process_socket(sock)
 
@@ -88,7 +90,7 @@ class Server:
         if not data:
             self.close_conn(conn)
             return
-        
+
         expected_type, expected_size, params = decode_header(data)
         message = socket.recv(expected_size).decode()
 
@@ -109,7 +111,8 @@ class Server:
 
     def process_metadata_packet(self, conn: ClientConnection, username: str):
         if username in self.get_connected_users():
-            logging.warning(f'{conn.addr[0]}:{conn.addr[1]} attempted to join using a duplicate username: "{username}"')
+            logging.warning(f'{conn.addr[0]}:{conn.addr[1]} attempted to join'
+                            f' using a duplicate username: "{username}"')
             self.handle_duplicate_username(conn)
             return
         conn.username = username
@@ -122,17 +125,20 @@ class Server:
 
     def handle_duplicate_username(self, conn: ClientConnection):
         connected_users_list = ", ".join(self.get_connected_users())
-        
+
         message = connected_users_list.encode()
         header = encode_header(PacketType.DUPLICATE_USERNAME, len(message))
         conn.socket.sendall(header + message)
-        logging.warning(f'{conn.addr[0]}:{conn.addr[1]} notified of duplicate username, and user list sent')
+        logging.warning(f'{conn.addr[0]}:{conn.addr[1]} notified of'
+                        f' duplicate username, and user list sent')
 
-    def process_message_packet(self, conn: ClientConnection, recipient: [None|str], message: str):
+    def process_message_packet(self, conn: ClientConnection,
+                               recipient: [str], message: str):
         logging.info(f'Message received from {conn.username}: "{message}"')
 
         message = message.encode()
-        header = encode_header(PacketType.IN_MESSAGE, len(message), sender=conn.username)
+        header = encode_header(PacketType.IN_MESSAGE,
+                               len(message), sender=conn.username)
 
         if recipient:
             self.unicast(header + message, recipient)
@@ -147,7 +153,7 @@ class Server:
                 files = [f'|-- {e.name}\n' for e in entries if e.is_file()]
         except FileNotFoundError:
             logging.warning(f'No files found on server')
-            files = []        
+            files = []
 
         message = f'download\n{"".join(files)}'.encode()
         header = encode_header(PacketType.FILE_LIST, len(message))
@@ -163,37 +169,39 @@ class Server:
         except FileNotFoundError:
             logging.error(f'File not found: "{filepath}"')
             return
-        
-        header = encode_header(PacketType.DOWNLOAD, len(file), filename=filename)
+
+        header = encode_header(PacketType.DOWNLOAD,
+                               len(file), filename=filename)
         logging.info(f'Sending {filename} to {conn.username}')
         conn.socket.sendall(header + file)
         logging.info(f'Successfully sent {filename} to {conn.username}')
-        
 
-    def broadcast(self, data: bytes, exclude: list[str]=[]):
+    def broadcast(self, data: bytes, exclude: list[str] = []):
         for conn in self.connections:
             if conn.username in exclude:
                 continue
             conn.socket.sendall(data)
-            logging.info(f'Packet sent to {conn.username}: "{data[HEADER_SIZE:].decode()}"')
+            logging.info(f'Packet sent to {conn.username}:'
+                         f' "{data[HEADER_SIZE:].decode()}"')
 
     def unicast(self, data: bytes, recipient: str):
         for conn in self.connections:
             if conn.username == recipient:
                 conn.socket.sendall(data)
-                logging.info(f'Packet sent to {recipient}: "{data[HEADER_SIZE:].decode()}"')
+                logging.info(f'Packet sent to {recipient}:'
+                             f' "{data[HEADER_SIZE:].decode()}"')
             else:
-                logging.warning(f'{recipient} is not currently a connected user')
-                #TODO Notify user that recipient doesn't exist
+                logging.warning(f'{recipient} is not currently connected')
+                # TODO: Notify user that recipient doesn't exist
 
     def get_conn_by_socket(self, socket: socket.socket):
         for conn in self.connections:
             if conn.socket == socket:
                 return conn
-            
+
         logging.warning(f'Could not find socket in current connections')
         return None
-    
+
     def get_connected_users(self):
         return [conn.username for conn in self.connections if conn.username]
 

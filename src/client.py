@@ -130,11 +130,13 @@ class Client:
                 case ['/msg', username, user_input]:
                     # Direct message a specific client
                     if username == self.username:
-                        print(f'Select someone other than yourself to directly message')
+                        print(f'Select someone other than'
+                              f' yourself to directly message')
                         return
-                
+
                     message = user_input.encode()
-                    header = encode_header(PacketType.OUT_MESSAGE, len(message), recipient=username)
+                    header = encode_header(PacketType.OUT_MESSAGE,
+                                           len(message), recipient=username)
                     self.socket.sendall(header + message)
                 case ['/list_files']:
                     # Request a list of all available files
@@ -142,12 +144,14 @@ class Client:
                     self.socket.sendall(header)
                 case ['/download', filename]:
                     # Request to download a certain file
-                    header = encode_header(PacketType.DOWNLOAD_REQUEST, 0, filename=filename)
+                    header = encode_header(PacketType.DOWNLOAD_REQUEST,
+                                           0, filename=filename)
                     self.socket.sendall(header)
                 case _:
                     # Send message to everyone
                     message = user_input.encode()
-                    header = encode_header(PacketType.OUT_MESSAGE, len(message))
+                    header = encode_header(PacketType.OUT_MESSAGE,
+                                           len(message))
                     self.socket.sendall(header + message)
 
     def close(self):

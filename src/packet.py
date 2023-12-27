@@ -4,6 +4,7 @@ from packet_type import PacketType
 HEADER_SIZE = 1024
 DELIMITER = '<###>'
 
+
 def encode_header(packet_type: PacketType, packet_size: int, **kwargs: dict):
     header_bytes = b''
     header_bytes += str(packet_type.value).encode().ljust(2)
