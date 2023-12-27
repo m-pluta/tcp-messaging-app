@@ -1,6 +1,5 @@
 # Standard Library Imports
 import logging
-from enum import Enum
 
 # Local Imports
 from log_event import LogEvent

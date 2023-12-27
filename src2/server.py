@@ -79,9 +79,7 @@ class Server:
         data = socket.recv(HEADER_SIZE)
         conn = self.get_conn_by_socket(socket)
         if not data:
-            self.close_socket(socket)
-            print(f'{conn.username} disconnected')
-            self.connections.remove(conn)
+            self.close_conn(conn)
             return
         
         expected_type, expected_size, params = decode_header(data)
@@ -184,11 +182,18 @@ class Server:
     
     def get_connected_users(self):
         return [conn.username for conn in self.connections if conn.username]
-    
-    def close_socket(self, client_socket: socket.socket):
-        if client_socket.fileno() != -1:
-            client_socket.shutdown(socket.SHUT_RDWR)
-            client_socket.close()
+
+    def close_conn(self, conn: ClientConnection):
+        if conn.socket.fileno() != -1:
+            conn.socket.shutdown(socket.SHUT_RDWR)
+            conn.socket.close()
+
+        message = f'{conn.username} disconnected'.encode()
+        header = encode_header(PacketType.ANNOUNCEMENT, len(message))
+        self.broadcast(header + message, exclude=[conn.username])
+
+        self.connections.remove(conn)
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
