@@ -14,7 +14,7 @@ class Client:
         self.server_hostname = hostname
         self.server_port = port
 
-        self.is_active = False
+        self.is_connected = False
         self.save_directory = f'{username}/'
         self.new_username_requested = False
 
@@ -22,8 +22,14 @@ class Client:
         # Setup socket
         print(f"Connecting to {self.server_hostname}:{self.server_port}")
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.connect((self.server_hostname, self.server_port))
-        self.is_active = True
+        try:
+            self.socket.connect((self.server_hostname, self.server_port))
+        except ConnectionRefusedError:
+            print("Could not connect to server")
+            sys.exit()
+        self.is_connected = True
+
+        print(f"Connected to {self.server_hostname}:{self.server_port}")
 
         # Start a new thread to handle communication with the server
         server_thread = threading.Thread(target=self.handle_server_response)
@@ -39,8 +45,14 @@ class Client:
         self.new_username_requested = False
     
     def handle_server_response(self):
-        while self.is_active:
-            data = self.socket.recv(HEADER_SIZE)
+        while self.is_connected:
+            try:
+                data = self.socket.recv(HEADER_SIZE)
+            except ConnectionResetError:
+                print('Disconnected from the server')
+                self.close()
+                break
+
             if not data:
                 continue
 
@@ -98,8 +110,14 @@ class Client:
             try:
                 user_input = str(input()).rstrip()
             except KeyboardInterrupt as e:
+                print('Detected Keyboard Interrupt')
                 self.close()
+                break
 
+            if not self.is_connected:
+                break
+            if not user_input:
+                continue
             if self.new_username_requested:
                 self.username = user_input
                 self.send_username()
@@ -107,6 +125,7 @@ class Client:
 
             match user_input.split(maxsplit=2):
                 case ['/disconnect']:
+                    print('Disconnecting from server')
                     self.close()
                 case ['/msg', username, user_input]:
                     # Direct message a specific client
@@ -132,9 +151,10 @@ class Client:
                     self.socket.sendall(header + message)
 
     def close(self):
-        print('Disconnecting from server')
-        self.socket.shutdown(socket.SHUT_RDWR)
-        self.socket.close()
+        self.is_connected = False
+        if self.socket.fileno() != -1:
+            self.socket.shutdown(socket.SHUT_RDWR)
+            self.socket.close()
         sys.exit()
 
 
