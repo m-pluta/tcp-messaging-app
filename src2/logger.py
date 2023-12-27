@@ -9,6 +9,7 @@ class Logger:
     def __init__(self, log_filepath: str):
         # Setup log file
         self.log_filepath = log_filepath
+        self.clear_log_file()
 
         # Setup logger and formatting
         self.logger = logging.getLogger('my_logger')
@@ -64,4 +65,9 @@ class Logger:
                 f'Client {username} requested to download {filename}'),
         }
 
-        self.logger.info(log_messages.get(event_type, None)) 
+        self.logger.info(log_messages.get(event_type, None))
+
+    def clear_log_file(self):
+        # Open and close file in write mode to clear
+        with open(self.log_filepath, 'w'):
+            pass
