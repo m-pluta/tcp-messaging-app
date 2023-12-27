@@ -222,8 +222,6 @@ class Server:
 
     def close(self):
         logging.info(f'Server closing')
-        for conn in self.connections:
-            self.close_conn(conn)
         sys.exit(0)
 
 
