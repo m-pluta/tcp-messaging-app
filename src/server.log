@@ -1,0 +1,56 @@
+2023-12-28 03:48:14,021 | INFO     | Server starting on port 8000
+2023-12-28 03:48:14,022 | INFO     | Server started on port 8000
+2023-12-28 03:48:14,022 | INFO     | Server listening on port 8000
+2023-12-28 03:48:17,434 | INFO     | New client connection 127.0.0.1:53239
+2023-12-28 03:48:17,435 | INFO     | 127.0.0.1:53239 identified as user1
+2023-12-28 03:48:17,435 | INFO     | Packet sent to user1: "Welcome to the server, user1!"
+2023-12-28 03:48:30,536 | INFO     | New client connection 127.0.0.1:53245
+2023-12-28 03:48:30,536 | INFO     | 127.0.0.1:53245 identified as user2
+2023-12-28 03:48:30,537 | INFO     | Packet sent to user1: "user2 has joined"
+2023-12-28 03:48:30,537 | INFO     | Packet sent to user2: "Welcome to the server, user2!"
+2023-12-28 03:48:34,473 | INFO     | New client connection 127.0.0.1:53247
+2023-12-28 03:48:34,474 | WARNING  | 127.0.0.1:53247 attempted to join using a duplicate username: "user1"
+2023-12-28 03:48:34,474 | WARNING  | 127.0.0.1:53247 notified of duplicate username, and user list sent
+2023-12-28 03:48:37,571 | WARNING  | 127.0.0.1:53247 attempted to join using a duplicate username: "user2"
+2023-12-28 03:48:37,572 | WARNING  | 127.0.0.1:53247 notified of duplicate username, and user list sent
+2023-12-28 03:48:40,968 | INFO     | 127.0.0.1:53247 identified as user3
+2023-12-28 03:48:40,968 | INFO     | Packet sent to user1: "user3 has joined"
+2023-12-28 03:48:40,968 | INFO     | Packet sent to user2: "user3 has joined"
+2023-12-28 03:48:40,968 | INFO     | Packet sent to user3: "Welcome to the server, user3!"
+2023-12-28 03:49:09,477 | INFO     | Message received from user1: "hey everyone"
+2023-12-28 03:49:09,477 | INFO     | Packet sent to user2: "hey everyone"
+2023-12-28 03:49:09,477 | INFO     | Packet sent to user3: "hey everyone"
+2023-12-28 03:49:16,391 | INFO     | Message received from user2: "hello!"
+2023-12-28 03:49:16,391 | INFO     | Packet sent to user1: "hello!"
+2023-12-28 03:49:16,392 | INFO     | Packet sent to user3: "hello!"
+2023-12-28 03:49:39,277 | INFO     | Message received from user2: "what are you up to?"
+2023-12-28 03:49:39,277 | INFO     | Packet sent to user3: "what are you up to?"
+2023-12-28 03:49:49,118 | INFO     | Message received from user3: "just doing coursework"
+2023-12-28 03:49:49,118 | INFO     | Packet sent to user2: "just doing coursework"
+2023-12-28 03:49:54,665 | INFO     | Message received from user3: "bye everyone"
+2023-12-28 03:49:54,666 | INFO     | Packet sent to user1: "bye everyone"
+2023-12-28 03:49:54,666 | INFO     | Packet sent to user2: "bye everyone"
+2023-12-28 03:50:00,480 | INFO     | user3 disconnected
+2023-12-28 03:50:00,480 | INFO     | Packet sent to user1: "user3 has left"
+2023-12-28 03:50:00,481 | INFO     | Packet sent to user2: "user3 has left"
+2023-12-28 03:50:00,481 | INFO     | Removed user3 from current connections
+2023-12-28 03:50:25,506 | INFO     | Message received from user2: "hello?"
+2023-12-28 03:50:25,507 | WARNING  | user3 is not currently connected
+2023-12-28 03:50:32,006 | INFO     | List of available files requested by user1
+2023-12-28 03:50:32,007 | INFO     | Available file list sent to user1
+2023-12-28 03:50:43,356 | INFO     | user1 requested to download lorem_ipsum.txt
+2023-12-28 03:50:43,357 | INFO     | Sending lorem_ipsum.txt to user1
+2023-12-28 03:50:43,358 | INFO     | Successfully sent lorem_ipsum.txt to user1
+2023-12-28 03:50:49,838 | INFO     | user1 requested to download whistle.mp4
+2023-12-28 03:50:49,840 | INFO     | Sending whistle.mp4 to user1
+2023-12-28 03:50:49,844 | INFO     | Successfully sent whistle.mp4 to user1
+2023-12-28 03:50:57,686 | INFO     | user1 requested to download sun.png
+2023-12-28 03:50:57,686 | INFO     | Sending sun.png to user1
+2023-12-28 03:50:57,686 | INFO     | Successfully sent sun.png to user1
+2023-12-28 03:51:05,200 | INFO     | user1 disconnected
+2023-12-28 03:51:05,200 | INFO     | Packet sent to user2: "user1 has left"
+2023-12-28 03:51:05,200 | INFO     | Removed user1 from current connections
+2023-12-28 03:51:19,105 | INFO     | user2 disconnected
+2023-12-28 03:51:19,105 | INFO     | Removed user2 from current connections
+2023-12-28 03:51:20,775 | CRITICAL | Detected Keyboard Interrupt
+2023-12-28 03:51:20,775 | INFO     | Server closing
