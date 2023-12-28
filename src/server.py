@@ -202,9 +202,10 @@ class Server:
                 conn.socket.sendall(data)
                 logging.info(f'Packet sent to {recipient}:'
                              f' "{data[HEADER_SIZE:].decode()}"')
-            else:
-                logging.warning(f'{recipient} is not currently connected')
-                # TODO: Notify user that recipient doesn't exist
+                return
+
+        logging.warning(f'{recipient} is not currently connected')
+        # TODO: Notify user that recipient doesn't exist
 
     def get_conn_by_socket(self, socket: socket.socket):
         for conn in self.connections:
