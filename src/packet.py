@@ -1,3 +1,4 @@
+# Local Imports
 from socket import socket
 from packet_type import PacketType
 
@@ -6,20 +7,24 @@ DELIMITER = '<###>'
 
 
 def encode_header(packet_type: PacketType, packet_size: int, **kwargs: dict):
-    header_bytes = b''
-    header_bytes += str(packet_type.value).encode().ljust(2)
-    header_bytes += str(packet_size).encode().ljust(16)
+    # First 2 bytes: packet type
+    # Next 16 bytes: packet size
+    header_bytes = f"{packet_type.value:02d}{packet_size:016d}".encode()
 
+    # Remaining kwargs are added to header seperated by DELIMITER
     for kwarg, value in kwargs.items():
         header_bytes += f'{kwarg}:{str(value)}{DELIMITER}'.encode()
 
+    # Header size is fixed to HEADER_SIZE number of bytes
     return header_bytes.ljust(HEADER_SIZE)
 
 
 def decode_header(data: bytes):
+    # Extract the packet type & size
     packet_type = PacketType(int(data[:2].decode()))
     packet_size = int(data[2:18].decode())
 
+    # Extract additional key-value pairs from the header
     encoded_values = data[18:].decode().rstrip().split(DELIMITER)[:-1]
     decoded_values = {}
     for value in encoded_values:
@@ -35,8 +40,9 @@ def decode_header(data: bytes):
 def recv_generator(socket: socket, expected: int, chunk_size=65536):
     received = 0
     while received < expected:
-        read_data = socket.recv(min(chunk_size, expected - received))
-        if not read_data:
+        # Receive data in chunks and yield each chunk
+        data = socket.recv(min(chunk_size, expected - received))
+        if not data:
             break
-        received += len(read_data)
-        yield read_data
+        received += len(data)
+        yield data

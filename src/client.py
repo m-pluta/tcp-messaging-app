@@ -1,3 +1,4 @@
+# Standard Library Imports
 import os
 import sys
 import socket
@@ -10,14 +11,17 @@ from packet import HEADER_SIZE, encode_header, decode_header, recv_generator
 
 class Client:
     def __init__(self, username: str, hostname: str, port: int):
+        # Initialize instance variables
         self.username = username
         self.server_hostname = hostname
         self.server_port = port
 
+        # Connection status flags
         self.is_connected = False
         self.new_username_requested = False
 
     def start(self):
+        # Establish a connection to the server
         print(f"Connecting to {self.server_hostname}:{self.server_port}")
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -34,19 +38,26 @@ class Client:
         server_thread.daemon = True
         server_thread.start()
 
+        # Send the username to the server
         self.send_username()
+
+        # Begin handling user input in the command-line interface
         self.handle_cli_input()
 
     def send_username(self):
+        # Send the username to the server to associate it with the connection
         header = encode_header(PacketType.USERNAME, 0, username=self.username)
         self.socket.sendall(header)
         self.new_username_requested = False
 
     def handle_server_response(self):
+        # Continuously listens for server responses while connected
         while self.is_connected:
             try:
+                # Attempt to receive data from the server
                 data = self.socket.recv(HEADER_SIZE)
             except ConnectionResetError:
+                # Handle disconnection gracefully and close the client
                 print('Disconnected from the server\nPress enter to exit')
                 self.close()
                 break
@@ -54,9 +65,11 @@ class Client:
             if not data:
                 continue
 
+            # Decode the header to determine the type & size of the packet
             expected_type, expected_size, params = decode_header(data)
 
             if expected_type == PacketType.DOWNLOAD:
+                # Handle file download
                 datastream = recv_generator(self.socket, expected_size)
                 filename = params.get('filename')
                 self.process_download(datastream, filename)
@@ -64,6 +77,7 @@ class Client:
 
             message = self.socket.recv(expected_size).decode()
 
+            # Handle different types of server messages
             match expected_type:
                 case PacketType.ANNOUNCEMENT:
                     self.process_announcement(message)
@@ -75,22 +89,26 @@ class Client:
                     sender = params.get('sender')
                     self.process_in_message(message, sender)
 
-    def process_in_message(self, message, sender):
+    def process_in_message(self, message: str, sender: str):
+        # Display incoming chat messages, including sender if available
         if sender:
             print(f'{sender}: {message}')
         else:
             print(f'{message}')
 
-    def process_announcement(self, message):
+    def process_announcement(self, message: str):
+        # Display server announcements
         print(f'{message}')
 
-    def process_duplicate_username(self, user_list):
+    def process_duplicate_username(self, user_list: str):
+        # Handle case where chosen username is already taken
         print(f'This username is already taken\n'
               f'Current users connected to the server: {user_list}\n'
               f'Enter a new username: ', end='')
         self.new_username_requested = True
 
-    def process_download(self, datastream, filename):
+    def process_download(self, datastream: bytes, filename: str):
+        # Save downloaded file to the user's directory
         save_directory = f'{self.username}/'
         os.makedirs(save_directory, exist_ok=True)
 
@@ -105,6 +123,7 @@ class Client:
 
     def handle_cli_input(self):
         while True:
+            # Get input from user
             try:
                 user_input = input().strip()
             except KeyboardInterrupt:
@@ -112,12 +131,15 @@ class Client:
                 self.close()
                 break
 
+            # Check if still connected
             if not self.is_connected:
                 break
 
+            # If user didn't enter anything
             if not user_input:
                 continue
 
+            # If the server requested a new username from the user
             if self.new_username_requested:
                 self.username = user_input
                 self.send_username()
@@ -128,7 +150,7 @@ class Client:
                     print('Disconnecting from server')
                     self.close()
                 case ['/msg', username, user_input]:
-                    # Direct message a specific client
+                    # Direct message a specific user
                     if username == self.username:
                         print(f'Select someone other than'
                               f' yourself to directly message')
@@ -155,6 +177,7 @@ class Client:
                     self.socket.sendall(header + message)
 
     def close(self):
+        # Close the socket to the server if it is open
         self.is_connected = False
         if self.socket.fileno() != -1:
             self.socket.shutdown(socket.SHUT_RDWR)
@@ -163,10 +186,12 @@ class Client:
 
 
 if __name__ == "__main__":
+    # Check if the correct number of command-line arguments were provided
     if len(sys.argv) != 4:
         print("Usage: python client.py [username] [hostname] [port]")
         sys.exit(1)
 
+    # Extract command-line arguments
     username = sys.argv[1]
     hostname = sys.argv[2]
 
@@ -176,5 +201,6 @@ if __name__ == "__main__":
         print("Invalid port number. Port must be an integer.")
         sys.exit(1)
 
+    # Create and start the client
     client = Client(username, hostname, port)
     client.start()
