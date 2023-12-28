@@ -31,8 +31,6 @@ class Client:
             sys.exit()
         self.is_connected = True
 
-        print(f"Connected to {self.server_hostname}:{self.server_port}")
-
         # Start a new thread to handle communication with the server
         server_thread = threading.Thread(target=self.handle_server_response)
         server_thread.daemon = True

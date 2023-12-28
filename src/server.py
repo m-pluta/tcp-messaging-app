@@ -124,9 +124,13 @@ class Server:
         logging.info(f'{conn.addr[0]}:{conn.addr[1]} identified as {username}')
 
         # Broadcast the user's join announcement to all other connected clients
-        message = f'{username} has joined the chat'.encode()
+        message = f'{username} has joined'.encode()
         header = encode_header(PacketType.ANNOUNCEMENT, len(message))
         self.broadcast(header + message, exclude=[username])
+
+        message = f'Welcome to the server, {username}!'.encode()
+        header = encode_header(PacketType.ANNOUNCEMENT, len(message))
+        self.unicast(header + message, username)
 
     def handle_duplicate_username(self, conn: ClientConnection):
         connected_users_list = ", ".join(self.get_connected_users())
@@ -225,7 +229,7 @@ class Server:
 
         logging.info(f'{conn.username} disconnected')
 
-        message = f'{conn.username} has left the chat'.encode()
+        message = f'{conn.username} has left'.encode()
         header = encode_header(PacketType.ANNOUNCEMENT, len(message))
         self.broadcast(header + message, exclude=[conn.username])
 
