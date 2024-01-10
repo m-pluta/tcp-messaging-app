@@ -8,7 +8,7 @@ import logging
 
 # Local Imports
 from packet_type import PacketType
-from packet import HEADER_SIZE, encode_header, decode_header
+from util import HEADER_SIZE, encode_header, decode_header
 
 
 class ClientConnection:

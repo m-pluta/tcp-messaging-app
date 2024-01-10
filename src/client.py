@@ -6,7 +6,7 @@ import threading
 
 # Local Imports
 from packet_type import PacketType
-from packet import HEADER_SIZE, encode_header, decode_header, recv_generator
+from util import HEADER_SIZE, encode_header, decode_header, recv_generator
 
 
 class Client:
