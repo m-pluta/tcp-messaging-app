@@ -74,6 +74,8 @@ While device A is sending its frame for a duration of 60µs, device B reattempts
 
 *Assumption: The WAP only forwards the packets, it does not modify or wrap the packets. i.e. it doesn't modify the source address of each frame.*
 
+*Assumption: The switch stores the source MAC Address in the switching table immediately after the frame first reaches the switch.*
+
 Initially, since the switch is cold started, its switching table contains no entries.
 
 At t=0µs, device C begins transmitting their frame to some device connected to the WAP. The switch takes note of the source MAC address (CC-CC-CC-CC-CC-CC) and port (6) from which this frame came from. The switch cannot unicast this frame since its switching table doesn't contain any devices connected to the WAP, hence, it broadcasts this frame to all devices except device C. It does this by sending the frame to all the ports except port 6.
